@@ -42,8 +42,17 @@ jobs:
 
       - name: Configure bucket website settings
         run: |
-          # Enable website hosting
-          gsutil web set -m index.html -e index.html gs://${{ secrets.GCS_BUCKET_NAME }}
+          # Enable website hosting with error handling
+          echo "Configuring website hosting..."
+          if ! gsutil web set -m index.html -e index.html gs://${{ secrets.GCS_BUCKET_NAME }}; then
+            echo "ERROR: Failed to set website configuration"
+            echo "Trying alternative method..."
+            gcloud storage buckets update gs://${{ secrets.GCS_BUCKET_NAME }} \
+              --web-main-page-suffix=index.html \
+              --web-error-page=index.html || exit 1
+          fi
+          echo "Verifying website configuration..."
+          gsutil web get gs://${{ secrets.GCS_BUCKET_NAME }} || gcloud storage buckets describe gs://${{ secrets.GCS_BUCKET_NAME }} --format="value(website)"
 
       - name: Set permissions
         run: |
