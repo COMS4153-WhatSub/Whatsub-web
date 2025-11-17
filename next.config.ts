@@ -5,7 +5,8 @@ const nextConfig: NextConfig = {
   images: {
     unoptimized: true,
   },
-  assetPrefix: "./", // This makes all paths relative
+  assetPrefix: "", // Empty string, not './'
+  basePath: "",
 };
 
 export default nextConfig;
