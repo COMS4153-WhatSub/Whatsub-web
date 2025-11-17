@@ -40,6 +40,11 @@ jobs:
         run: |
           gsutil -m rsync -r out/ gs://${{ secrets.GCS_BUCKET_NAME }}/
 
+      - name: Configure bucket website settings
+        run: |
+          # Enable website hosting
+          gsutil web set -m index.html -e index.html gs://${{ secrets.GCS_BUCKET_NAME }}
+
       - name: Set permissions
         run: |
           gsutil iam ch allUsers:objectViewer gs://${{ secrets.GCS_BUCKET_NAME }}
