@@ -5,7 +5,7 @@ const nextConfig: NextConfig = {
   images: {
     unoptimized: true,
   },
-  trailingSlash: true,
+  assetPrefix: "./", // This makes all paths relative
 };
 
 export default nextConfig;
