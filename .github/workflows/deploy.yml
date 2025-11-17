@@ -8,7 +8,7 @@ on:
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
-
+    
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -16,14 +16,21 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
-          cache: "npm"
+          node-version: '20'
+          cache: 'npm'
 
       - name: Install dependencies
         run: npm ci
 
       - name: Build Next.js
         run: npm run build
+
+      - name: Fix asset paths (remove leading slashes)
+        run: |
+          find out -type f \( -name "*.html" -o -name "*.css" -o -name "*.js" \) -exec sed -i 's|"/_next/|"_next/|g' {} +
+          find out -type f \( -name "*.html" -o -name "*.css" -o -name "*.js" \) -exec sed -i "s|'/_next/|'_next/|g" {} +
+          find out -type f \( -name "*.html" -o -name "*.css" -o -name "*.js" \) -exec sed -i 's|href="/|href="|g' {} +
+          find out -type f \( -name "*.html" -o -name "*.css" -o -name "*.js" \) -exec sed -i 's|src="/|src="|g' {} +
 
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
@@ -33,13 +40,10 @@ jobs:
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
 
-      - name: Clear bucket and upload fresh files
+      - name: Upload to Cloud Storage
         run: |
-          gsutil -m rm -r gs://${{ secrets.GCS_BUCKET_NAME }}/** || true
-          gsutil -m cp -r out/* gs://${{ secrets.GCS_BUCKET_NAME }}/
+          gsutil -m rsync -r out/ gs://${{ secrets.GCS_BUCKET_NAME }}/
 
-      - name: Set permissions and headers
+      - name: Set permissions
         run: |
           gsutil iam ch allUsers:objectViewer gs://${{ secrets.GCS_BUCKET_NAME }}
-          gsutil -m setmeta -h "Cache-Control:public, max-age=3600" "gs://${{ secrets.GCS_BUCKET_NAME }}/_next/**" || true
-          gsutil web set -m index.html -e 404.html gs://${{ secrets.GCS_BUCKET_NAME }}
