@@ -25,9 +25,6 @@ jobs:
       - name: Build Next.js
         run: npm run build
 
-      - name: Fix asset paths
-        run: node scripts/fix-paths.js
-
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
         with:
@@ -38,11 +35,10 @@ jobs:
 
       - name: Upload to Cloud Storage
         run: |
-          gsutil -m rsync -r out/ gs://${{ secrets.GCS_BUCKET_NAME }}/
+          gsutil -m rsync -r -d out/ gs://${{ secrets.GCS_BUCKET_NAME }}/
 
       - name: Configure bucket website settings
         run: |
-          # Enable website hosting with error handling
           echo "Configuring website hosting..."
           if ! gsutil web set -m index.html -e index.html gs://${{ secrets.GCS_BUCKET_NAME }}; then
             echo "ERROR: Failed to set website configuration"
