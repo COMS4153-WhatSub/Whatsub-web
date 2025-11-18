@@ -11,7 +11,7 @@ export function Navbar() {
 
   const links = [
     { href: "/", label: "Dashboard", icon: LayoutDashboard },
-    { href: "/calendar", label: "Calendar", icon: Calendar },
+    { href: "/calendar/", label: "Calendar", icon: Calendar },
   ];
 
   return (
