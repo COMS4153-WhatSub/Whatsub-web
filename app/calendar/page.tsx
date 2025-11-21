@@ -16,29 +16,29 @@ export default function CalendarPage() {
   useEffect(() => {
     const token = localStorage.getItem("whatsub_token");
     if (!token) {
-        router.push("/login");
-        return;
+      router.push("/login");
+      return;
     }
 
     async function loadData() {
-        if (!userId) return;
-        try {
-            const data = await getSubscriptions(userId);
-            setSubs(data);
-        } finally {
-            setLoading(false);
-        }
+      if (!userId) return;
+      try {
+        const data = await getSubscriptions(userId);
+        setSubs(data);
+      } finally {
+        setLoading(false);
+      }
     }
 
     if (userId) {
-        loadData();
+      loadData();
     }
   }, [userId, router]);
 
-  if (loading) return <div className="p-6">Loading...</div>;
+  if (loading) return <div className="p-6 max-w-5xl mx-auto">Loading...</div>;
 
   return (
-    <main className="container mx-auto p-6">
+    <main className="container mx-auto p-6 max-w-5xl">
       <PaymentCalendar subscriptions={subs} />
     </main>
   );
