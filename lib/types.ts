@@ -12,6 +12,8 @@ export interface Subscription {
   startDate: string;
   description?: string;
   icon?: string;
+  url?: string;
+  account?: string;
 }
 
 export interface SubscriptionStats {
