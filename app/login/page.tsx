@@ -35,12 +35,19 @@ export default function LoginPage() {
                     
                     if (res.ok) {
                         const data = await res.json();
-                        // Backend returns { token: { access_token: ... }, user: { id: ... } }
+                        // Backend returns { token: { access_token: ... }, user: { id, name, email, picture? } }
                         const token = data.token?.access_token;
-                        const userId = data.user?.id; 
+                        const userData = data.user;
                         
-                        if (token && userId) {
-                            login(token, userId);
+                        if (token && userData?.id) {
+                            // Create user object with required fields
+                            const user = {
+                                id: userData.id,
+                                name: userData.name || userData.email || "User",
+                                email: userData.email || "",
+                                picture: userData.picture || userData.avatar_url || undefined,
+                            };
+                            login(token, user);
                             router.push("/");
                         } else {
                             setError("Invalid response from server: Missing token or user ID");

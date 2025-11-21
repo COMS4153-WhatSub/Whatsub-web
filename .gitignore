@@ -41,3 +41,6 @@ yarn-error.log*
 next-env.d.ts
 gcp-key.json
 gcp-key*.json
+
+
+.env.local
