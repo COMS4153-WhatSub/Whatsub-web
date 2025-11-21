@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Dashboard } from "@/components/dashboard";
+import { DashboardSkeleton } from "@/components/dashboard-skeleton";
 import { getSubscriptions, calculateStats } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { Subscription, SubscriptionStats } from "@/lib/types";
@@ -24,6 +25,7 @@ export default function Home() {
 
     async function loadData() {
         if (!userId) return;
+        setLoading(true);
         try {
             const data = await getSubscriptions(userId);
             setSubs(data);
@@ -37,11 +39,9 @@ export default function Home() {
 
     if (userId) {
         loadData();
-    } else if (token) {
-        // Token exists but userId missing in context? Wait for hydration or fetch profile?
-        // Ideally auth-context handles restoration.
-        setLoading(false); 
     }
+    // Note: We don't manually set loading(false) if only token exists but no userId yet.
+    // We wait for userId to be populated by AuthProvider to trigger loadData.
   }, [isAuthenticated, userId, router]);
 
   // Prevent flash of content or "Loading" stuck if not auth
@@ -51,15 +51,36 @@ export default function Home() {
 
   if (loading) {
       return (
-        <div className="flex h-screen items-center justify-center">
-            <div className="text-lg">Loading...</div>
-        </div>
+        <main className="container mx-auto p-6">
+            <DashboardSkeleton />
+        </main>
       );
   }
 
+  const handleRefresh = async () => {
+    if (!userId) return;
+    setLoading(true);
+    try {
+      const data = await getSubscriptions(userId);
+      setSubs(data);
+      setStats(calculateStats(data));
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <main className="container mx-auto p-6">
-      {stats && <Dashboard subscriptions={subs} stats={stats} />}
+      {stats && userId && (
+        <Dashboard
+          subscriptions={subs}
+          stats={stats}
+          userId={userId}
+          onRefresh={handleRefresh}
+        />
+      )}
     </main>
   );
 }

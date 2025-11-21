@@ -92,3 +92,92 @@ export function calculateStats(subs: Subscription[]): SubscriptionStats {
     upcomingPayments: upcoming
   };
 }
+
+export interface CreateSubscriptionPayload {
+  user_id: string;
+  plan: string;
+  billing_type: "monthly" | "quarterly" | "annually";
+  url?: string;
+  account?: string;
+  billing_date?: string;
+  price?: string;
+}
+
+export interface UpdateSubscriptionPayload {
+  plan?: string;
+  billing_type?: "monthly" | "quarterly" | "annually";
+  url?: string;
+  account?: string;
+  billing_date?: string;
+  price?: string;
+}
+
+export async function createSubscription(payload: CreateSubscriptionPayload): Promise<Subscription> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/subscriptions`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...getAuthHeaders(),
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (!res.ok) {
+      const error = await res.json().catch(() => ({ detail: "Failed to create subscription" }));
+      throw new Error(error.detail || "Failed to create subscription");
+    }
+
+    const data = await res.json();
+    return adaptSubscription(data);
+  } catch (error) {
+    console.error("Error creating subscription:", error);
+    throw error;
+  }
+}
+
+export async function updateSubscription(
+  subscriptionId: string,
+  payload: UpdateSubscriptionPayload
+): Promise<Subscription> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/subscriptions/${subscriptionId}`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        ...getAuthHeaders(),
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (!res.ok) {
+      const error = await res.json().catch(() => ({ detail: "Failed to update subscription" }));
+      throw new Error(error.detail || "Failed to update subscription");
+    }
+
+    const data = await res.json();
+    return adaptSubscription(data);
+  } catch (error) {
+    console.error("Error updating subscription:", error);
+    throw error;
+  }
+}
+
+export async function deleteSubscription(subscriptionId: string): Promise<void> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/subscriptions/${subscriptionId}`, {
+      method: "DELETE",
+      headers: {
+        ...getAuthHeaders(),
+      },
+    });
+
+    if (!res.ok) {
+      const error = await res.json().catch(() => ({ detail: "Failed to delete subscription" }));
+      throw new Error(error.detail || "Failed to delete subscription");
+    }
+  } catch (error) {
+    console.error("Error deleting subscription:", error);
+    throw error;
+  }
+}
