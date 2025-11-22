@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { format } from "date-fns";
+import { Calendar as CalendarIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -18,7 +20,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Subscription } from "@/lib/types";
+import { Calendar } from "@/components/ui/calendar";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
+import { Subscription, SubscriptionCategory } from "@/lib/types";
 import {
   createSubscription,
   updateSubscription,
@@ -43,9 +52,11 @@ export function SubscriptionForm({
 }: SubscriptionFormProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [billingDate, setBillingDate] = useState<Date | undefined>(undefined);
   const [formData, setFormData] = useState({
     plan: "",
     billing_type: "monthly" as "monthly" | "quarterly" | "annually",
+    category: "other" as SubscriptionCategory,
     price: "",
     url: "",
     account: "",
@@ -59,19 +70,26 @@ export function SubscriptionForm({
       if (subscription.billingCycle === "yearly") billingType = "annually";
       else if (subscription.billingCycle === "quarterly") billingType = "quarterly";
 
+      const dateStr = subscription.nextBillingDate.split("T")[0];
+      const date = dateStr ? new Date(dateStr) : undefined;
+
+      setBillingDate(date);
       setFormData({
         plan: subscription.serviceName,
         billing_type: billingType,
+        category: subscription.category || "other",
         price: subscription.price.toString(),
         url: subscription.url || "",
         account: subscription.account || "",
-        billing_date: subscription.nextBillingDate.split("T")[0],
+        billing_date: dateStr,
       });
     } else {
       // Reset form for new subscription
+      setBillingDate(undefined);
       setFormData({
         plan: "",
         billing_type: "monthly",
+        category: "other",
         price: "",
         url: "",
         account: "",
@@ -87,15 +105,19 @@ export function SubscriptionForm({
     setError(null);
 
     try {
+      // Format date for backend (YYYY-MM-DD)
+      const formattedDate = billingDate ? format(billingDate, "yyyy-MM-dd") : undefined;
+
       if (subscription) {
         // Update existing subscription
         const updatePayload: UpdateSubscriptionPayload = {
           plan: formData.plan,
           billing_type: formData.billing_type,
+          category: formData.category,
           price: formData.price || undefined,
           url: formData.url || undefined,
           account: formData.account || undefined,
-          billing_date: formData.billing_date || undefined,
+          billing_date: formattedDate,
         };
         await updateSubscription(subscription.id, updatePayload);
       } else {
@@ -104,10 +126,11 @@ export function SubscriptionForm({
           user_id: userId,
           plan: formData.plan,
           billing_type: formData.billing_type,
+          category: formData.category,
           price: formData.price || undefined,
           url: formData.url || undefined,
           account: formData.account || undefined,
-          billing_date: formData.billing_date || undefined,
+          billing_date: formattedDate,
         };
         await createSubscription(createPayload);
       }
@@ -172,6 +195,33 @@ export function SubscriptionForm({
             </div>
 
             <div className="grid gap-2">
+              <label htmlFor="category" className="text-sm font-medium">
+                Category
+              </label>
+              <Select
+                value={formData.category}
+                onValueChange={(value: SubscriptionCategory) =>
+                  setFormData({ ...formData, category: value })
+                }
+              >
+                <SelectTrigger id="category">
+                  <SelectValue placeholder="Select category" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="streaming">Streaming</SelectItem>
+                  <SelectItem value="music">Music</SelectItem>
+                  <SelectItem value="software">Software</SelectItem>
+                  <SelectItem value="gaming">Gaming</SelectItem>
+                  <SelectItem value="cloud">Cloud</SelectItem>
+                  <SelectItem value="news">News</SelectItem>
+                  <SelectItem value="fitness">Fitness</SelectItem>
+                  <SelectItem value="education">Education</SelectItem>
+                  <SelectItem value="other">Other</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="grid gap-2">
               <label htmlFor="price" className="text-sm font-medium">
                 Price
               </label>
@@ -220,14 +270,33 @@ export function SubscriptionForm({
               <label htmlFor="billing_date" className="text-sm font-medium">
                 Next Billing Date
               </label>
-              <Input
-                id="billing_date"
-                type="date"
-                value={formData.billing_date}
-                onChange={(e) =>
-                  setFormData({ ...formData, billing_date: e.target.value })
-                }
-              />
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    id="billing_date"
+                    variant={"outline"}
+                    className={cn(
+                      "w-full justify-start text-left font-normal",
+                      !billingDate && "text-muted-foreground"
+                    )}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {billingDate ? (
+                      format(billingDate, "PPP")
+                    ) : (
+                      <span>Pick a date</span>
+                    )}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={billingDate}
+                    onSelect={setBillingDate}
+                    initialFocus
+                  />
+                </PopoverContent>
+              </Popover>
             </div>
 
             {error && (

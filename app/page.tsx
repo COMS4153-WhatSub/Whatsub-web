@@ -9,54 +9,62 @@ import { useAuth } from "@/lib/auth-context";
 import { Subscription, SubscriptionStats } from "@/lib/types";
 
 export default function Home() {
-  const { isAuthenticated, userId } = useAuth();
+  const { isAuthenticated, userId, isLoading: authLoading } = useAuth();
   const router = useRouter();
   const [subs, setSubs] = useState<Subscription[]>([]);
   const [stats, setStats] = useState<SubscriptionStats | null>(null);
   const [loading, setLoading] = useState(true);
+  const [redirecting, setRedirecting] = useState(false);
 
   useEffect(() => {
-    // Basic auth check
-    const token = localStorage.getItem("whatsub_token");
-    if (!token) {
+    // Wait for auth to finish loading
+    if (authLoading) {
+      return;
+    }
+
+    // If not authenticated, redirect to login immediately
+    if (!isAuthenticated || !userId) {
+      if (!redirecting) {
+        setRedirecting(true);
         router.push("/login");
-        return;
+      }
+      return;
     }
 
+    // If authenticated, load data
     async function loadData() {
-        if (!userId) return;
-        setLoading(true);
-        try {
-            const data = await getSubscriptions(userId);
-            setSubs(data);
-            setStats(calculateStats(data));
-        } catch (e) {
-            console.error(e);
-        } finally {
-            setLoading(false);
-        }
+      if (!userId) return;
+      setLoading(true);
+      try {
+        const data = await getSubscriptions(userId);
+        setSubs(data);
+        setStats(calculateStats(data));
+      } catch (e) {
+        console.error(e);
+        // If error is auth-related, redirect will be handled by API
+      } finally {
+        setLoading(false);
+      }
     }
 
-    if (userId) {
-        loadData();
-    }
-    // Note: We don't manually set loading(false) if only token exists but no userId yet.
-    // We wait for userId to be populated by AuthProvider to trigger loadData.
-  }, [isAuthenticated, userId, router]);
+    loadData();
+  }, [isAuthenticated, userId, router, authLoading, redirecting]);
 
-  // Prevent flash of content or "Loading" stuck if not auth
-  if (!isAuthenticated && typeof window !== 'undefined' && !localStorage.getItem("whatsub_token")) {
-      return null; 
+  // Show nothing while auth is loading or redirecting
+  if (authLoading || redirecting || !isAuthenticated || !userId) {
+    return null;
   }
 
+  // Show loading skeleton while data is loading
   if (loading) {
-      return (
-        <main className="container mx-auto p-6">
-            <DashboardSkeleton />
-        </main>
-      );
+    return (
+      <main className="container mx-auto p-6">
+        <DashboardSkeleton />
+      </main>
+    );
   }
 
+  // Show dashboard only when authenticated and data is loaded
   const handleRefresh = async () => {
     if (!userId) return;
     setLoading(true);
@@ -71,16 +79,19 @@ export default function Home() {
     }
   };
 
+  // Only render dashboard if we have stats and userId
+  if (!stats || !userId) {
+    return null;
+  }
+
   return (
     <main className="container mx-auto p-6">
-      {stats && userId && (
-        <Dashboard
-          subscriptions={subs}
-          stats={stats}
-          userId={userId}
-          onRefresh={handleRefresh}
-        />
-      )}
+      <Dashboard
+        subscriptions={subs}
+        stats={stats}
+        userId={userId}
+        onRefresh={handleRefresh}
+      />
     </main>
   );
 }

@@ -1,7 +1,8 @@
 "use client";
 
-import { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { createContext, useContext, useState, useEffect, useRef, ReactNode } from "react";
 import { GoogleOAuthProvider } from "@react-oauth/google";
+import { isTokenExpired, getTimeUntilExpiration } from "./jwt-utils";
 
 export interface User {
   id: string;
@@ -24,45 +25,17 @@ const AuthContext = createContext<AuthContextType | null>(null);
 
 const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || "";
 
+// Token expiration check interval (check every 5 minutes)
+const TOKEN_CHECK_INTERVAL = 5 * 60 * 1000;
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [token, setToken] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    const storedToken = localStorage.getItem("whatsub_token");
-    const storedUserId = localStorage.getItem("whatsub_user_id");
-    const storedUser = localStorage.getItem("whatsub_user");
-    
-    if (storedToken && storedUserId && storedUser) {
-      try {
-        const parsedUser = JSON.parse(storedUser);
-        setToken(storedToken);
-        setUserId(storedUserId);
-        setUser(parsedUser);
-        setIsAuthenticated(true);
-      } catch (error) {
-        console.error("Error parsing stored user:", error);
-        // Clear invalid data
-        localStorage.removeItem("whatsub_token");
-        localStorage.removeItem("whatsub_user_id");
-        localStorage.removeItem("whatsub_user");
-      }
-    }
-    setIsLoading(false);
-  }, []);
-
-  const login = (newToken: string, newUser: User) => {
-    setToken(newToken);
-    setUserId(newUser.id);
-    setUser(newUser);
-    setIsAuthenticated(true);
-    localStorage.setItem("whatsub_token", newToken);
-    localStorage.setItem("whatsub_user_id", newUser.id);
-    localStorage.setItem("whatsub_user", JSON.stringify(newUser));
-  };
+  const expirationTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const periodicCheckRef = useRef<NodeJS.Timeout | null>(null);
 
   const logout = () => {
     setToken(null);
@@ -72,6 +45,130 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem("whatsub_token");
     localStorage.removeItem("whatsub_user_id");
     localStorage.removeItem("whatsub_user");
+    
+    // Clear expiration timers
+    if (expirationTimerRef.current) {
+      clearTimeout(expirationTimerRef.current);
+      expirationTimerRef.current = null;
+    }
+    if (periodicCheckRef.current) {
+      clearInterval(periodicCheckRef.current);
+      periodicCheckRef.current = null;
+    }
+    
+    // Redirect to login page using window.location for reliability
+    if (typeof window !== 'undefined') {
+      window.location.href = '/login';
+    }
+  };
+
+  const checkTokenExpiration = (tokenToCheck: string) => {
+    if (isTokenExpired(tokenToCheck)) {
+      console.warn("Token expired, logging out...");
+      logout();
+      return false;
+    }
+    return true;
+  };
+
+  const scheduleExpirationCheck = (tokenToCheck: string) => {
+    // Clear existing timers
+    if (expirationTimerRef.current) {
+      clearTimeout(expirationTimerRef.current);
+      expirationTimerRef.current = null;
+    }
+    if (periodicCheckRef.current) {
+      clearInterval(periodicCheckRef.current);
+      periodicCheckRef.current = null;
+    }
+
+    const timeUntilExpiration = getTimeUntilExpiration(tokenToCheck);
+    
+    if (timeUntilExpiration === null) {
+      // Token is already expired or invalid
+      logout();
+      return;
+    }
+
+    // Schedule check slightly before expiration (1 minute before)
+    const checkTime = Math.max(timeUntilExpiration - 60 * 1000, 0);
+    
+    expirationTimerRef.current = setTimeout(() => {
+      checkTokenExpiration(tokenToCheck);
+    }, checkTime);
+
+    // Also set up periodic checks as a fallback (every 5 minutes)
+    periodicCheckRef.current = setInterval(() => {
+      const currentToken = localStorage.getItem("whatsub_token");
+      if (currentToken && isTokenExpired(currentToken)) {
+        logout();
+      }
+    }, TOKEN_CHECK_INTERVAL);
+  };
+
+  useEffect(() => {
+    const storedToken = localStorage.getItem("whatsub_token");
+    const storedUserId = localStorage.getItem("whatsub_user_id");
+    const storedUser = localStorage.getItem("whatsub_user");
+    
+    if (storedToken && storedUserId && storedUser) {
+      try {
+        // Check if token is expired before restoring
+        if (isTokenExpired(storedToken)) {
+          console.warn("Stored token is expired, clearing auth state");
+          localStorage.removeItem("whatsub_token");
+          localStorage.removeItem("whatsub_user_id");
+          localStorage.removeItem("whatsub_user");
+          setIsLoading(false);
+          return;
+        }
+
+        const parsedUser = JSON.parse(storedUser);
+        setToken(storedToken);
+        setUserId(storedUserId);
+        setUser(parsedUser);
+        setIsAuthenticated(true);
+        
+        // Schedule expiration check
+        scheduleExpirationCheck(storedToken);
+      } catch (error) {
+        console.error("Error parsing stored user:", error);
+        // Clear invalid data
+        localStorage.removeItem("whatsub_token");
+        localStorage.removeItem("whatsub_user_id");
+        localStorage.removeItem("whatsub_user");
+      }
+    }
+    setIsLoading(false);
+
+    // Cleanup on unmount
+    return () => {
+      if (expirationTimerRef.current) {
+        clearTimeout(expirationTimerRef.current);
+      }
+      if (periodicCheckRef.current) {
+        clearInterval(periodicCheckRef.current);
+      }
+    };
+  }, []);
+
+  const login = (newToken: string, newUser: User) => {
+    // Check if token is already expired (shouldn't happen, but safety check)
+    if (isTokenExpired(newToken)) {
+      console.error("Attempted to login with expired token");
+      return;
+    }
+
+    setToken(newToken);
+    setUserId(newUser.id);
+    setUser(newUser);
+    setIsAuthenticated(true);
+    localStorage.setItem("whatsub_token", newToken);
+    localStorage.setItem("whatsub_user_id", newUser.id);
+    localStorage.setItem("whatsub_user", JSON.stringify(newUser));
+    
+    // Schedule expiration check for new token
+    scheduleExpirationCheck(newToken);
   };
 
   return (

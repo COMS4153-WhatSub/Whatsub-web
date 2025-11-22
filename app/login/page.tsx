@@ -3,14 +3,44 @@
 import { GoogleLogin } from "@react-oauth/google";
 import { useAuth } from "@/lib/auth-context";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
 
 export default function LoginPage() {
-  const { login } = useAuth();
+  const { login, isAuthenticated, isLoading } = useAuth();
   const router = useRouter();
   const [error, setError] = useState("");
+
+  // Redirect to home if already authenticated
+  useEffect(() => {
+    if (!isLoading && isAuthenticated) {
+      router.push("/");
+    }
+  }, [isAuthenticated, isLoading, router]);
+
+  // Show loading state while checking auth status
+  if (isLoading) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Don't show login page if already authenticated (will redirect via useEffect)
+  if (isAuthenticated) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <p className="text-gray-600">Redirecting...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-screen items-center justify-center bg-gray-50">
@@ -19,13 +49,18 @@ export default function LoginPage() {
           Sign in to Whatsub
         </h2>
         
-        {error && <p className="text-red-500 text-sm">{error}</p>}
+        {error && (
+          <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-md">
+            <p className="text-red-600 text-sm">{error}</p>
+          </div>
+        )}
 
         <div className="mt-8 flex justify-center">
           <GoogleLogin
             onSuccess={async (credentialResponse) => {
               if (credentialResponse.credential) {
                 try {
+                    setError(""); // Clear any previous errors
                     // Send ID Token to Backend to exchange for Session Token / Verify
                     const res = await fetch(`${API_BASE_URL}/auth/google`, {
                         method: 'POST',
@@ -54,7 +89,8 @@ export default function LoginPage() {
                             console.error("Login response structure mismatch:", data);
                         }
                     } else {
-                        setError("Login failed via backend validation");
+                        const errorData = await res.json().catch(() => ({ detail: "Login failed" }));
+                        setError(errorData.detail || "Login failed via backend validation");
                     }
                 } catch (e) {
                     setError("Network error during login");
@@ -62,7 +98,9 @@ export default function LoginPage() {
                 }
               }
             }}
-            onError={() => setError("Google Login Failed")}
+            onError={() => {
+              setError("Google Login Failed. Please try again.");
+            }}
           />
         </div>
       </div>

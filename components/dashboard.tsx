@@ -25,18 +25,23 @@ import {
   ChartLegendContent,
 } from "@/components/ui/chart";
 
-// Color palette for pie chart
-const COLORS = [
-  "#E50914", // Red
-  "#1DB954", // Green
-  "#007AFF", // Blue
-  "#FF9500", // Orange
-  "#AF52DE", // Purple
-  "#5AC8FA", // Light Blue
-  "#FF2D55", // Pink
-  "#FFCC00", // Yellow
-  "#34C759", // Mint
-  "#FF6B6B", // Coral
+// Color palette for categories
+const CATEGORY_COLORS: Record<string, string> = {
+  streaming: "#E50914", // Red (Netflix style)
+  music: "#1DB954", // Green (Spotify style)
+  software: "#007AFF", // Blue
+  gaming: "#FF9500", // Orange
+  cloud: "#5AC8FA", // Light Blue
+  news: "#FF2D55", // Pink
+  fitness: "#34C759", // Mint
+  education: "#AF52DE", // Purple
+  other: "#6B7280", // Gray
+};
+
+// Fallback colors if category not found
+const FALLBACK_COLORS = [
+  "#E50914", "#1DB954", "#007AFF", "#FF9500", "#AF52DE",
+  "#5AC8FA", "#FF2D55", "#FFCC00", "#34C759", "#FF6B6B",
 ];
 
 interface DashboardProps {
@@ -54,20 +59,37 @@ export function Dashboard({ subscriptions, stats, userId, onRefresh }: Dashboard
     sub.serviceName.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  // Prepare pie chart data from subscriptions
-  const pieChartData = subscriptions.map((sub, index) => ({
-    name: sub.serviceName,
-    value: sub.price,
-    fill: COLORS[index % COLORS.length],
-  }));
+  // Group subscriptions by category and calculate total spending per category
+  const categoryData = subscriptions.reduce((acc, sub) => {
+    const category = sub.category || "other";
+    const monthlyPrice = 
+      sub.billingCycle === "monthly" ? sub.price :
+      sub.billingCycle === "quarterly" ? sub.price / 3 :
+      sub.billingCycle === "yearly" ? sub.price / 12 :
+      sub.price;
+    
+    if (!acc[category]) {
+      acc[category] = {
+        name: category.charAt(0).toUpperCase() + category.slice(1),
+        value: 0,
+        fill: CATEGORY_COLORS[category] || CATEGORY_COLORS.other,
+      };
+    }
+    acc[category].value += monthlyPrice;
+    return acc;
+  }, {} as Record<string, { name: string; value: number; fill: string }>);
 
-  // Create chart config dynamically
-  const chartConfig = subscriptions.reduce(
-    (config, sub, index) => ({
+  // Convert to array and sort by value (descending)
+  const pieChartData = Object.values(categoryData)
+    .sort((a, b) => b.value - a.value);
+
+  // Create chart config for categories
+  const chartConfig = Object.entries(categoryData).reduce(
+    (config, [category, data]) => ({
       ...config,
-      [sub.serviceName.toLowerCase().replace(/\s+/g, "")]: {
-        label: sub.serviceName,
-        color: COLORS[index % COLORS.length],
+      [category]: {
+        label: data.name,
+        color: data.fill,
       },
     }),
     {} as Record<string, { label: string; color: string }>
