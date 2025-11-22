@@ -37,18 +37,18 @@ export function SubscriptionCard({ subscription, userId, onUpdate }: Subscriptio
 
   return (
     <>
-      <Card>
-        <CardHeader>
+    <Card>
+      <CardHeader>
           <div className="flex items-start justify-between">
             <div className="flex items-center gap-3 flex-1">
-              <div className="text-3xl">{subscription.icon || "📦"}</div>
+          <div className="text-3xl">{subscription.icon || "📦"}</div>
               <div className="flex-1">
-                <CardTitle className="text-lg">
-                  {subscription.serviceName}
-                </CardTitle>
-                <p className="text-sm text-muted-foreground">
-                  {subscription.description}
-                </p>
+            <CardTitle className="text-lg">
+              {subscription.serviceName}
+            </CardTitle>
+            <p className="text-sm text-muted-foreground">
+              {subscription.description}
+            </p>
               </div>
             </div>
             <div className="flex gap-1">
@@ -68,26 +68,26 @@ export function SubscriptionCard({ subscription, userId, onUpdate }: Subscriptio
               >
                 <Trash2 className="h-4 w-4" />
               </Button>
-            </div>
           </div>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="flex items-center gap-2">
-            <DollarSign className="h-4 w-4" />
-            <span className="text-2xl font-bold">${subscription.price}</span>
-            <span className="text-sm text-muted-foreground">
-              / {subscription.billingCycle}
-            </span>
-          </div>
-          <div className="flex items-center gap-2">
-            <Calendar className="h-4 w-4" />
-            <span className="text-sm">
-              Next: {new Date(subscription.nextBillingDate).toLocaleDateString()}
-            </span>
-          </div>
-          <Badge>{subscription.status}</Badge>
-        </CardContent>
-      </Card>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div className="flex items-center gap-2">
+          <DollarSign className="h-4 w-4" />
+          <span className="text-2xl font-bold">${subscription.price}</span>
+          <span className="text-sm text-muted-foreground">
+            / {subscription.billingCycle}
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          <Calendar className="h-4 w-4" />
+          <span className="text-sm">
+            Next: {new Date(subscription.nextBillingDate).toLocaleDateString()}
+          </span>
+        </div>
+        <Badge>{subscription.status}</Badge>
+      </CardContent>
+    </Card>
 
       <SubscriptionForm
         open={editOpen}

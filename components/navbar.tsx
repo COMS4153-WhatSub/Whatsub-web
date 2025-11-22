@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { LayoutDashboard, Calendar, Bell, LogOut } from "lucide-react";
+import { LayoutDashboard, Calendar, Bell, LogOut, Shield } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -17,11 +17,12 @@ import { useAuth } from "@/lib/auth-context";
 export function Navbar() {
   const pathname = usePathname();
   const router = useRouter();
-  const { user, isLoading, logout } = useAuth();
+  const { user, isLoading, logout, isAdmin } = useAuth();
 
   const links = [
     { href: "/", label: "Dashboard", icon: LayoutDashboard },
     { href: "/calendar/", label: "Calendar", icon: Calendar },
+    ...(isAdmin ? [{ href: "/admin", label: "Admin", icon: Shield }] : []),
   ];
 
   const handleSignOut = () => {

@@ -176,27 +176,27 @@ export function Dashboard({ subscriptions, stats, userId, onRefresh }: Dashboard
       <div className="grid gap-6 lg:grid-cols-2">
         {/* Left: Stat Cards */}
         <div className="grid gap-4 grid-cols-2">
-          <StatCard
-            title="Total Subscriptions"
-            value={stats.totalSubscriptions}
-            icon={CreditCard}
-          />
-          <StatCard
-            title="Monthly Total"
+        <StatCard
+          title="Total Subscriptions"
+          value={stats.totalSubscriptions}
+          icon={CreditCard}
+        />
+        <StatCard
+          title="Monthly Total"
             value={`$${stats.monthlyTotal.toFixed(2)}`}
-            icon={DollarSign}
-          />
-          <StatCard
-            title="Yearly Total"
+          icon={DollarSign}
+        />
+        <StatCard
+          title="Yearly Total"
             value={`$${stats.yearlyTotal.toFixed(2)}`}
-            icon={TrendingUp}
-          />
-          <StatCard
-            title="Due This Week"
-            value={stats.upcomingPayments}
-            icon={AlertCircle}
-          />
-        </div>
+          icon={TrendingUp}
+        />
+        <StatCard
+          title="Due This Week"
+          value={stats.upcomingPayments}
+          icon={AlertCircle}
+        />
+      </div>
 
         {/* Right: Pie Chart */}
         <Card>
@@ -247,7 +247,7 @@ export function Dashboard({ subscriptions, stats, userId, onRefresh }: Dashboard
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle>Your Subscriptions</CardTitle>
+          <CardTitle>Your Subscriptions</CardTitle>
               <p className="text-sm text-muted-foreground mt-1">
                 {filteredSubscriptions.length === subscriptions.length
                   ? `${subscriptions.length} total`
@@ -262,13 +262,13 @@ export function Dashboard({ subscriptions, stats, userId, onRefresh }: Dashboard
           <div className="space-y-4 mt-4">
             {/* Search Bar */}
             <div className="relative">
-              <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search subscriptions..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-9"
-              />
+            <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search subscriptions..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-9"
+            />
             </div>
 
             {/* Filters and Sort */}
@@ -340,16 +340,16 @@ export function Dashboard({ subscriptions, stats, userId, onRefresh }: Dashboard
               {searchQuery ? "No subscriptions found matching your search." : "No subscriptions yet. Add your first subscription to get started!"}
             </div>
           ) : (
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {filteredSubscriptions.map((subscription) => (
-                <SubscriptionCard
-                  key={subscription.id}
-                  subscription={subscription}
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {filteredSubscriptions.map((subscription) => (
+              <SubscriptionCard
+                key={subscription.id}
+                subscription={subscription}
                   userId={userId}
                   onUpdate={onRefresh}
-                />
-              ))}
-            </div>
+              />
+            ))}
+          </div>
           )}
         </CardContent>
       </Card>

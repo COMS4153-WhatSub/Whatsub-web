@@ -75,12 +75,17 @@ export default function LoginPage() {
                         const userData = data.user;
                         
                         if (token && userData?.id) {
+                            // Extract role from JWT token
+                            const { getRoleFromToken } = await import("@/lib/api");
+                            const role = getRoleFromToken(token);
+                            
                             // Create user object with required fields
                             const user = {
                                 id: userData.id,
-                                name: userData.name || userData.email || "User",
+                                name: userData.full_name || userData.name || userData.email || "User",
                                 email: userData.email || "",
                                 picture: userData.picture || userData.avatar_url || undefined,
+                                role: role,
                             };
                             login(token, user);
                             router.push("/");

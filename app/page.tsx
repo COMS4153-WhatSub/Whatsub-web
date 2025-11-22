@@ -28,36 +28,36 @@ export default function Home() {
         setRedirecting(true);
         router.push("/login");
       }
-      return;
+        return;
     }
 
     // If authenticated, load data
     async function loadData() {
-      if (!userId) return;
+        if (!userId) return;
       setLoading(true);
-      try {
-        const data = await getSubscriptions(userId);
-        setSubs(data);
-        setStats(calculateStats(data));
-      } catch (e) {
-        console.error(e);
+        try {
+            const data = await getSubscriptions(userId);
+            setSubs(data);
+            setStats(calculateStats(data));
+        } catch (e) {
+            console.error(e);
         // If error is auth-related, redirect will be handled by API
-      } finally {
-        setLoading(false);
-      }
+        } finally {
+            setLoading(false);
+        }
     }
 
-    loadData();
+        loadData();
   }, [isAuthenticated, userId, router, authLoading, redirecting]);
 
   // Show nothing while auth is loading or redirecting
   if (authLoading || redirecting || !isAuthenticated || !userId) {
-    return null;
+      return null; 
   }
 
   // Show loading skeleton while data is loading
   if (loading) {
-    return (
+      return (
       <main className="container mx-auto p-6">
         <DashboardSkeleton />
       </main>

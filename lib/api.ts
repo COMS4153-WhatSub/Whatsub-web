@@ -1,5 +1,5 @@
 import { Subscription, SubscriptionStats, SubscriptionCategory } from "./types";
-import { isTokenExpired } from "./jwt-utils";
+import { isTokenExpired, decodeJWT } from "./jwt-utils";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
 
@@ -289,6 +289,205 @@ export async function deleteSubscription(subscriptionId: string): Promise<void> 
     }
   } catch (error) {
     console.error("Error deleting subscription:", error);
+    throw error;
+  }
+}
+
+// Admin API functions
+
+export interface AdminUser {
+  id: string;
+  email: string;
+  full_name: string | null;
+  primary_phone: string | null;
+  role: "user" | "admin";
+}
+
+export interface AdminStats {
+  total_users: number;
+  total_subscriptions: number;
+  active_subscriptions: number;
+  total_monthly_revenue: number;
+  subscriptions_by_category: Record<string, number>;
+  subscriptions_by_status: Record<string, number>;
+}
+
+/**
+ * Get role from JWT token
+ */
+export function getRoleFromToken(token: string): "user" | "admin" {
+  const payload = decodeJWT(token);
+  return (payload?.role as "user" | "admin") || "user";
+}
+
+/**
+ * List all users (Admin only)
+ */
+export async function listAllUsers(): Promise<AdminUser[]> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/admin/users`, {
+      headers: {
+        ...getAuthHeaders(),
+      },
+      cache: "no-store",
+    });
+    
+    if (!res.ok) {
+      const errorText = await res.text();
+      let errorMessage = "Failed to fetch users";
+      try {
+        const errorJson = JSON.parse(errorText);
+        errorMessage = errorJson.detail || errorJson.message || errorMessage;
+      } catch {
+        errorMessage = errorText || errorMessage;
+      }
+      
+      console.error(`Failed to fetch users: ${res.status} ${res.statusText}`, errorMessage);
+      
+      if (res.status === 401 || res.status === 403) {
+        handleAuthError();
+      }
+      throw new Error(`${res.status}: ${errorMessage}`);
+    }
+    
+    return await res.json();
+  } catch (error) {
+    if (error instanceof TypeError && error.message.includes('fetch')) {
+      console.error("Network error fetching users:", error);
+      throw new Error("Network error: Unable to connect to server. Please check if the backend service is running.");
+    }
+    console.error("Error fetching users:", error);
+    throw error;
+  }
+}
+
+/**
+ * Get user by ID (Admin only)
+ */
+export async function getUserById(userId: string): Promise<AdminUser> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/admin/users/${userId}`, {
+      headers: {
+        ...getAuthHeaders(),
+      },
+      cache: "no-store",
+    });
+    
+    if (!res.ok) {
+      if (res.status === 401 || res.status === 403) {
+        handleAuthError();
+      }
+      throw new Error("Failed to fetch user");
+    }
+    
+    return await res.json();
+  } catch (error) {
+    console.error("Error fetching user:", error);
+    throw error;
+  }
+}
+
+/**
+ * List all subscriptions (Admin only)
+ */
+export async function listAllSubscriptions(page: number = 1, limit: number = 50): Promise<{ items: Subscription[]; total: number }> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/admin/subscriptions?page=${page}&limit=${limit}`, {
+      headers: {
+        ...getAuthHeaders(),
+      },
+      cache: "no-store",
+    });
+    
+    if (!res.ok) {
+      const errorText = await res.text();
+      let errorMessage = "Failed to fetch subscriptions";
+      try {
+        const errorJson = JSON.parse(errorText);
+        errorMessage = errorJson.detail || errorJson.message || errorMessage;
+      } catch {
+        errorMessage = errorText || errorMessage;
+      }
+      
+      console.error(`Failed to fetch subscriptions: ${res.status} ${res.statusText}`, errorMessage);
+      
+      if (res.status === 401 || res.status === 403) {
+        handleAuthError();
+      }
+      throw new Error(`${res.status}: ${errorMessage}`);
+    }
+    
+    const json = await res.json();
+    return {
+      items: (json.items || []).map(adaptSubscription),
+      total: json.total || 0,
+    };
+  } catch (error) {
+    if (error instanceof TypeError && error.message.includes('fetch')) {
+      console.error("Network error fetching subscriptions:", error);
+      throw new Error("Network error: Unable to connect to server. Please check if the backend service is running.");
+    }
+    console.error("Error fetching subscriptions:", error);
+    throw error;
+  }
+}
+
+/**
+ * Get admin statistics (Admin only)
+ */
+export async function getAdminStats(): Promise<AdminStats> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/admin/stats`, {
+      headers: {
+        ...getAuthHeaders(),
+      },
+      cache: "no-store",
+    });
+    
+    if (!res.ok) {
+      const errorText = await res.text();
+      let errorMessage = "Failed to fetch admin stats";
+      let errorDetails: any = null;
+      
+      try {
+        const errorJson = JSON.parse(errorText);
+        errorMessage = errorJson.detail || errorJson.message || errorMessage;
+        errorDetails = errorJson;
+      } catch {
+        errorMessage = errorText || errorMessage;
+      }
+      
+      // Log detailed error information for debugging
+      console.error("Admin stats API error:", {
+        status: res.status,
+        statusText: res.statusText,
+        url: `${API_BASE_URL}/admin/stats`,
+        errorMessage,
+        errorDetails,
+        responseText: errorText,
+      });
+      
+      if (res.status === 401 || res.status === 403) {
+        handleAuthError();
+      }
+      
+      // Create a more detailed error message
+      const detailedError = new Error(`${res.status}: ${errorMessage}`);
+      (detailedError as any).status = res.status;
+      (detailedError as any).details = errorDetails;
+      (detailedError as any).responseText = errorText;
+      throw detailedError;
+    }
+    
+    const data = await res.json();
+    console.log("Admin stats response:", data);
+    return data;
+  } catch (error) {
+    if (error instanceof TypeError && error.message.includes('fetch')) {
+      console.error("Network error fetching admin stats:", error);
+      throw new Error("Network error: Unable to connect to server. Please check if the backend service is running.");
+    }
+    console.error("Error fetching admin stats:", error);
     throw error;
   }
 }

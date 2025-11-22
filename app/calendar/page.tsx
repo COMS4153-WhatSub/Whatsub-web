@@ -24,7 +24,7 @@ export default function CalendarPage() {
     if (!isAuthenticated || !userId) {
       if (!redirecting) {
         setRedirecting(true);
-        router.push("/login");
+      router.push("/login");
       }
       return;
     }
@@ -44,13 +44,13 @@ export default function CalendarPage() {
       }
     }
 
-    loadData();
+      loadData();
   }, [isAuthenticated, userId, router, authLoading, redirecting]);
 
   // Show nothing while auth is loading or redirecting
   if (authLoading || redirecting || !isAuthenticated || !userId) {
     return null;
-  }
+    }
 
   // Show loading while data is loading
   if (loading) {

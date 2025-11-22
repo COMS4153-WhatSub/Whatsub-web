@@ -3,12 +3,14 @@
 import { createContext, useContext, useState, useEffect, useRef, ReactNode } from "react";
 import { GoogleOAuthProvider } from "@react-oauth/google";
 import { isTokenExpired, getTimeUntilExpiration } from "./jwt-utils";
+import { getRoleFromToken } from "./api";
 
 export interface User {
   id: string;
   name: string;
   email: string;
   picture?: string;
+  role?: "user" | "admin";
 }
 
 interface AuthContextType {
@@ -19,6 +21,7 @@ interface AuthContextType {
   login: (token: string, user: User) => void;
   logout: () => void;
   isAuthenticated: boolean;
+  isAdmin: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -36,6 +39,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const expirationTimerRef = useRef<NodeJS.Timeout | null>(null);
   const periodicCheckRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // Check if user is admin
+  const isAdmin = user?.role === "admin";
 
   const logout = () => {
     setToken(null);
@@ -124,10 +130,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
 
         const parsedUser = JSON.parse(storedUser);
-        setToken(storedToken);
-        setUserId(storedUserId);
-        setUser(parsedUser);
-        setIsAuthenticated(true);
+        
+        // Extract role from token (token is the source of truth)
+        const role = getRoleFromToken(storedToken);
+        const userWithRole = {
+          ...parsedUser,
+          role: role,
+        };
+        
+      setToken(storedToken);
+      setUserId(storedUserId);
+        setUser(userWithRole);
+      setIsAuthenticated(true);
+        
+        // Update localStorage with role
+        localStorage.setItem("whatsub_user", JSON.stringify(userWithRole));
         
         // Schedule expiration check
         scheduleExpirationCheck(storedToken);
@@ -173,7 +190,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
-      <AuthContext.Provider value={{ token, userId, user, isLoading, login, logout, isAuthenticated }}>
+      <AuthContext.Provider value={{ token, userId, user, isLoading, login, logout, isAuthenticated, isAdmin }}>
         {children}
       </AuthContext.Provider>
     </GoogleOAuthProvider>
