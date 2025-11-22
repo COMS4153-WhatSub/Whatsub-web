@@ -20,6 +20,24 @@ function handleAuthError() {
   }
 }
 
+/**
+ * Get emoji icon based on subscription category
+ */
+function getCategoryIcon(category: string): string {
+  const iconMap: Record<string, string> = {
+    streaming: "🎬",
+    music: "🎵",
+    software: "💻",
+    gaming: "🎮",
+    cloud: "☁️",
+    news: "📰",
+    fitness: "💪",
+    education: "📚",
+    other: "📦",
+  };
+  return iconMap[category] || iconMap.other;
+}
+
 function adaptSubscription(data: any): Subscription {
   // Map backend 'annually' to frontend 'yearly'
   let cycle: "monthly" | "yearly" | "quarterly" = "monthly";
@@ -43,6 +61,7 @@ function adaptSubscription(data: any): Subscription {
     autoRenew: true, // Default
     startDate: data.created_at,
     description: data.account,
+    icon: getCategoryIcon(category),
     url: data.url,
     account: data.account,
   };
@@ -140,8 +159,20 @@ export function calculateStats(subs: Subscription[]): SubscriptionStats {
     return acc;
   }, 0);
   
-  // Simple upcoming logic: billing date is in future
-  const upcoming = subs.filter(sub => new Date(sub.nextBillingDate) > now).length;
+  // Calculate payments due this week (today + next 7 days)
+  const today = new Date(now);
+  today.setHours(0, 0, 0, 0); // Start of today
+  
+  const oneWeekFromNow = new Date(today);
+  oneWeekFromNow.setDate(today.getDate() + 7);
+  oneWeekFromNow.setHours(23, 59, 59, 999); // End of the 7th day
+  
+  const upcoming = subs.filter(sub => {
+    const billingDate = new Date(sub.nextBillingDate);
+    billingDate.setHours(0, 0, 0, 0); // Normalize to start of day
+    // Include today and next 7 days (8 days total)
+    return billingDate >= today && billingDate <= oneWeekFromNow;
+  }).length;
 
   return {
     totalSubscriptions: subs.length,

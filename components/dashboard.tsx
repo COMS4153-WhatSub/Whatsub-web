@@ -1,13 +1,20 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { StatCard } from "@/components/stat-card";
 import { SubscriptionCard } from "@/components/subscription-card";
 import { SubscriptionForm } from "@/components/subscription-form";
-import { Subscription, SubscriptionStats } from "@/lib/types";
+import { Subscription, SubscriptionStats, SubscriptionCategory } from "@/lib/types";
 import {
   CreditCard,
   DollarSign,
@@ -15,6 +22,8 @@ import {
   AlertCircle,
   Search,
   Plus,
+  Filter,
+  X,
 } from "lucide-react";
 import { Pie, PieChart, Cell } from "recharts";
 import {
@@ -51,13 +60,78 @@ interface DashboardProps {
   onRefresh: () => void;
 }
 
+type SortOption = 
+  | "name-asc"
+  | "name-desc"
+  | "price-asc"
+  | "price-desc"
+  | "billing-cycle-asc"
+  | "billing-cycle-desc"
+  | "date-asc"
+  | "date-desc";
+
 export function Dashboard({ subscriptions, stats, userId, onRefresh }: DashboardProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [addDialogOpen, setAddDialogOpen] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState<string>("all");
+  const [sortOption, setSortOption] = useState<SortOption>("name-asc");
 
-  const filteredSubscriptions = subscriptions.filter((sub) =>
-    sub.serviceName.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // Get unique categories from subscriptions
+  const availableCategories = useMemo(() => {
+    const categories = new Set<string>();
+    subscriptions.forEach((sub) => {
+      if (sub.category) {
+        categories.add(sub.category);
+      }
+    });
+    return Array.from(categories).sort();
+  }, [subscriptions]);
+
+  // Filter and sort subscriptions
+  const filteredSubscriptions = useMemo(() => {
+    let filtered = subscriptions.filter((sub) => {
+      // Search filter
+      const matchesSearch = sub.serviceName
+        .toLowerCase()
+        .includes(searchQuery.toLowerCase());
+      
+      // Category filter
+      const matchesCategory = 
+        selectedCategory === "all" || sub.category === selectedCategory;
+      
+      return matchesSearch && matchesCategory;
+    });
+
+    // Apply sorting
+    filtered = [...filtered].sort((a, b) => {
+      switch (sortOption) {
+        case "name-asc":
+          return a.serviceName.localeCompare(b.serviceName);
+        case "name-desc":
+          return b.serviceName.localeCompare(a.serviceName);
+        case "price-asc":
+          return a.price - b.price;
+        case "price-desc":
+          return b.price - a.price;
+        case "billing-cycle-asc": {
+          const cycleOrder = { monthly: 1, quarterly: 2, yearly: 3 };
+          return (cycleOrder[a.billingCycle] || 0) - (cycleOrder[b.billingCycle] || 0);
+        }
+        case "billing-cycle-desc": {
+          const cycleOrder = { monthly: 1, quarterly: 2, yearly: 3 };
+          return (cycleOrder[b.billingCycle] || 0) - (cycleOrder[a.billingCycle] || 0);
+        }
+        case "date-asc":
+          return new Date(a.nextBillingDate).getTime() - new Date(b.nextBillingDate).getTime();
+        case "date-desc":
+          return new Date(b.nextBillingDate).getTime() - new Date(a.nextBillingDate).getTime();
+        default:
+          return 0;
+      }
+    });
+
+    return filtered;
+  }, [subscriptions, searchQuery, selectedCategory, sortOption]);
 
   // Group subscriptions by category and calculate total spending per category
   const categoryData = subscriptions.reduce((acc, sub) => {
@@ -84,10 +158,11 @@ export function Dashboard({ subscriptions, stats, userId, onRefresh }: Dashboard
     .sort((a, b) => b.value - a.value);
 
   // Create chart config for categories
-  const chartConfig = Object.entries(categoryData).reduce(
-    (config, [category, data]) => ({
+  // Use the display name as the key to match with pieChartData's name field
+  const chartConfig = pieChartData.reduce(
+    (config, data) => ({
       ...config,
-      [category]: {
+      [data.name]: {
         label: data.name,
         color: data.fill,
       },
@@ -153,7 +228,9 @@ export function Dashboard({ subscriptions, stats, userId, onRefresh }: Dashboard
                       <Cell key={`cell-${index}`} fill={entry.fill} />
                     ))}
                   </Pie>
-                  <ChartLegend content={<ChartLegendContent />} />
+                  <ChartLegend 
+                    content={<ChartLegendContent nameKey="name" />} 
+                  />
                 </PieChart>
               </ChartContainer>
             ) : (
@@ -169,20 +246,92 @@ export function Dashboard({ subscriptions, stats, userId, onRefresh }: Dashboard
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
-            <CardTitle>Your Subscriptions</CardTitle>
+            <div>
+              <CardTitle>Your Subscriptions</CardTitle>
+              <p className="text-sm text-muted-foreground mt-1">
+                {filteredSubscriptions.length === subscriptions.length
+                  ? `${subscriptions.length} total`
+                  : `Showing ${filteredSubscriptions.length} of ${subscriptions.length}`}
+              </p>
+            </div>
             <Button onClick={() => setAddDialogOpen(true)}>
               <Plus className="h-4 w-4 mr-2" />
               Add Subscription
             </Button>
           </div>
-          <div className="relative mt-4">
-            <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search subscriptions..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9"
-            />
+          <div className="space-y-4 mt-4">
+            {/* Search Bar */}
+            <div className="relative">
+              <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search subscriptions..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-9"
+              />
+            </div>
+
+            {/* Filters and Sort */}
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="flex items-center gap-2">
+                <Filter className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm text-muted-foreground">Filter:</span>
+              </div>
+              
+              {/* Category Filter */}
+              <Select
+                value={selectedCategory}
+                onValueChange={setSelectedCategory}
+              >
+                <SelectTrigger className="w-[180px] min-w-[180px]">
+                  <SelectValue placeholder="Category" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Categories</SelectItem>
+                  {availableCategories.map((category) => (
+                    <SelectItem key={category} value={category}>
+                      {category.charAt(0).toUpperCase() + category.slice(1)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              {/* Sort Option */}
+              <Select
+                value={sortOption}
+                onValueChange={(value) => setSortOption(value as SortOption)}
+              >
+                <SelectTrigger className="w-[160px]">
+                  <SelectValue placeholder="Sort by" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="name-asc">Name (A-Z)</SelectItem>
+                  <SelectItem value="name-desc">Name (Z-A)</SelectItem>
+                  <SelectItem value="price-asc">Price (Low to High)</SelectItem>
+                  <SelectItem value="price-desc">Price (High to Low)</SelectItem>
+                  <SelectItem value="billing-cycle-asc">Billing Cycle (Monthly → Yearly)</SelectItem>
+                  <SelectItem value="billing-cycle-desc">Billing Cycle (Yearly → Monthly)</SelectItem>
+                  <SelectItem value="date-asc">Next Billing (Earliest)</SelectItem>
+                  <SelectItem value="date-desc">Next Billing (Latest)</SelectItem>
+                </SelectContent>
+              </Select>
+
+              {/* Clear Filters Button */}
+              {(selectedCategory !== "all" || searchQuery) && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setSelectedCategory("all");
+                    setSearchQuery("");
+                  }}
+                  className="gap-2"
+                >
+                  <X className="h-4 w-4" />
+                  Clear Filters
+                </Button>
+              )}
+            </div>
           </div>
         </CardHeader>
         <CardContent>
