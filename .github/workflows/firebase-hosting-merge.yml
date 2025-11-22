@@ -15,7 +15,7 @@ jobs:
         env:
           NEXT_PUBLIC_GOOGLE_CLIENT_ID: ${{ secrets.NEXT_PUBLIC_GOOGLE_CLIENT_ID }}
           NEXT_PUBLIC_API_URL: ${{ secrets.NEXT_PUBLIC_API_URL }}
-          PAYLOAD_SIGNATURE_SECRET: ${{ secrets.PAYLOAD_SIGNATURE_SECRET }}
+          NEXT_PUBLIC_PAYLOAD_SIGNATURE_SECRET: ${{ secrets.PAYLOAD_SIGNATURE_SECRET }}
       - uses: FirebaseExtended/action-hosting-deploy@v0
         with:
           repoToken: ${{ secrets.GITHUB_TOKEN }}
