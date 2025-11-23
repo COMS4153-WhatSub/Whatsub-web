@@ -14,7 +14,7 @@ import {
 import { StatCard } from "@/components/stat-card";
 import { SubscriptionCard } from "@/components/subscription-card";
 import { SubscriptionForm } from "@/components/subscription-form";
-import { Subscription, SubscriptionStats, SubscriptionCategory } from "@/lib/types";
+import { Subscription, SubscriptionStats } from "@/lib/types";
 import {
   CreditCard,
   DollarSign,
@@ -29,28 +29,34 @@ import { Pie, PieChart, Cell } from "recharts";
 import {
   ChartContainer,
   ChartTooltip,
-  ChartTooltipContent,
   ChartLegend,
   ChartLegendContent,
 } from "@/components/ui/chart";
 
 // Color palette for categories
 const CATEGORY_COLORS: Record<string, string> = {
-  streaming: "#E50914", // Red (Netflix style)
-  music: "#1DB954", // Green (Spotify style)
-  software: "#007AFF", // Blue
-  gaming: "#FF9500", // Orange
-  cloud: "#5AC8FA", // Light Blue
-  news: "#FF2D55", // Pink
-  fitness: "#34C759", // Mint
-  education: "#AF52DE", // Purple
-  other: "#6B7280", // Gray
+  streaming: "#E50914",
+  music: "#1DB954",
+  software: "#007AFF",
+  gaming: "#FF9500",
+  cloud: "#5AC8FA",
+  news: "#FF2D55",
+  fitness: "#34C759",
+  education: "#AF52DE",
+  other: "#6B7280",
 };
 
-// Fallback colors if category not found
 const FALLBACK_COLORS = [
-  "#E50914", "#1DB954", "#007AFF", "#FF9500", "#AF52DE",
-  "#5AC8FA", "#FF2D55", "#FFCC00", "#34C759", "#FF6B6B",
+  "#E50914",
+  "#1DB954",
+  "#007AFF",
+  "#FF9500",
+  "#AF52DE",
+  "#5AC8FA",
+  "#FF2D55",
+  "#FFCC00",
+  "#34C759",
+  "#FF6B6B",
 ];
 
 interface DashboardProps {
@@ -60,7 +66,7 @@ interface DashboardProps {
   onRefresh: () => void;
 }
 
-type SortOption = 
+type SortOption =
   | "name-asc"
   | "name-desc"
   | "price-asc"
@@ -70,13 +76,17 @@ type SortOption =
   | "date-asc"
   | "date-desc";
 
-export function Dashboard({ subscriptions, stats, userId, onRefresh }: DashboardProps) {
+export function Dashboard({
+  subscriptions,
+  stats,
+  userId,
+  onRefresh,
+}: DashboardProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [sortOption, setSortOption] = useState<SortOption>("name-asc");
 
-  // Get unique categories from subscriptions
   const availableCategories = useMemo(() => {
     const categories = new Set<string>();
     subscriptions.forEach((sub) => {
@@ -87,22 +97,18 @@ export function Dashboard({ subscriptions, stats, userId, onRefresh }: Dashboard
     return Array.from(categories).sort();
   }, [subscriptions]);
 
-  // Filter and sort subscriptions
   const filteredSubscriptions = useMemo(() => {
     let filtered = subscriptions.filter((sub) => {
-      // Search filter
       const matchesSearch = sub.serviceName
         .toLowerCase()
         .includes(searchQuery.toLowerCase());
-      
-      // Category filter
-      const matchesCategory = 
+
+      const matchesCategory =
         selectedCategory === "all" || sub.category === selectedCategory;
-      
+
       return matchesSearch && matchesCategory;
     });
 
-    // Apply sorting
     filtered = [...filtered].sort((a, b) => {
       switch (sortOption) {
         case "name-asc":
@@ -115,16 +121,28 @@ export function Dashboard({ subscriptions, stats, userId, onRefresh }: Dashboard
           return b.price - a.price;
         case "billing-cycle-asc": {
           const cycleOrder = { monthly: 1, quarterly: 2, yearly: 3 };
-          return (cycleOrder[a.billingCycle] || 0) - (cycleOrder[b.billingCycle] || 0);
+          return (
+            (cycleOrder[a.billingCycle] || 0) -
+            (cycleOrder[b.billingCycle] || 0)
+          );
         }
         case "billing-cycle-desc": {
           const cycleOrder = { monthly: 1, quarterly: 2, yearly: 3 };
-          return (cycleOrder[b.billingCycle] || 0) - (cycleOrder[a.billingCycle] || 0);
+          return (
+            (cycleOrder[b.billingCycle] || 0) -
+            (cycleOrder[a.billingCycle] || 0)
+          );
         }
         case "date-asc":
-          return new Date(a.nextBillingDate).getTime() - new Date(b.nextBillingDate).getTime();
+          return (
+            new Date(a.nextBillingDate).getTime() -
+            new Date(b.nextBillingDate).getTime()
+          );
         case "date-desc":
-          return new Date(b.nextBillingDate).getTime() - new Date(a.nextBillingDate).getTime();
+          return (
+            new Date(b.nextBillingDate).getTime() -
+            new Date(a.nextBillingDate).getTime()
+          );
         default:
           return 0;
       }
@@ -133,32 +151,48 @@ export function Dashboard({ subscriptions, stats, userId, onRefresh }: Dashboard
     return filtered;
   }, [subscriptions, searchQuery, selectedCategory, sortOption]);
 
-  // Group subscriptions by category and calculate total spending per category
-  const categoryData = subscriptions.reduce((acc, sub) => {
-    const category = sub.category || "other";
-    const monthlyPrice = 
-      sub.billingCycle === "monthly" ? sub.price :
-      sub.billingCycle === "quarterly" ? sub.price / 3 :
-      sub.billingCycle === "yearly" ? sub.price / 12 :
-      sub.price;
-    
-    if (!acc[category]) {
-      acc[category] = {
-        name: category.charAt(0).toUpperCase() + category.slice(1),
-        value: 0,
-        fill: CATEGORY_COLORS[category] || CATEGORY_COLORS.other,
+  // Calculate pie chart data
+  const pieChartData = useMemo(() => {
+    const categoryMap = subscriptions.reduce((acc, sub) => {
+      const category = sub.category || "other";
+
+      // Convert to monthly equivalent
+      let monthlyPrice = sub.price;
+      if (sub.billingCycle === "quarterly") {
+        monthlyPrice = sub.price / 3;
+      } else if (sub.billingCycle === "yearly") {
+        monthlyPrice = sub.price / 12;
+      }
+
+      if (!acc[category]) {
+        acc[category] = {
+          category,
+          total: 0,
+          count: 0,
+        };
+      }
+
+      acc[category].total += monthlyPrice;
+      acc[category].count += 1;
+
+      return acc;
+    }, {} as Record<string, { category: string; total: number; count: number }>);
+
+    const data = Object.values(categoryMap).map((item, index) => {
+      const categoryKey = item.category.toLowerCase();
+      return {
+        name: item.category.charAt(0).toUpperCase() + item.category.slice(1),
+        value: Number(item.total.toFixed(2)),
+        count: item.count,
+        fill:
+          CATEGORY_COLORS[categoryKey] ||
+          FALLBACK_COLORS[index % FALLBACK_COLORS.length],
       };
-    }
-    acc[category].value += monthlyPrice;
-    return acc;
-  }, {} as Record<string, { name: string; value: number; fill: string }>);
+    });
 
-  // Convert to array and sort by value (descending)
-  const pieChartData = Object.values(categoryData)
-    .sort((a, b) => b.value - a.value);
+    return data.sort((a, b) => b.value - a.value);
+  }, [subscriptions]);
 
-  // Create chart config for categories
-  // Use the display name as the key to match with pieChartData's name field
   const chartConfig = pieChartData.reduce(
     (config, data) => ({
       ...config,
@@ -170,49 +204,74 @@ export function Dashboard({ subscriptions, stats, userId, onRefresh }: Dashboard
     {} as Record<string, { label: string; color: string }>
   );
 
+  const totalMonthlySpending = pieChartData.reduce(
+    (sum, item) => sum + item.value,
+    0
+  );
+
   return (
     <div className="space-y-6 max-w-5xl mx-auto">
-      {/* Top Section: Stats (left) + Pie Chart (right) */}
       <div className="grid gap-6 lg:grid-cols-2">
-        {/* Left: Stat Cards */}
         <div className="grid gap-4 grid-cols-2">
-        <StatCard
-          title="Total Subscriptions"
-          value={stats.totalSubscriptions}
-          icon={CreditCard}
-        />
-        <StatCard
-          title="Monthly Total"
+          <StatCard
+            title="Total Subscriptions"
+            value={stats.totalSubscriptions}
+            icon={CreditCard}
+          />
+          <StatCard
+            title="Monthly Total"
             value={`$${stats.monthlyTotal.toFixed(2)}`}
-          icon={DollarSign}
-        />
-        <StatCard
-          title="Yearly Total"
+            icon={DollarSign}
+          />
+          <StatCard
+            title="Yearly Total"
             value={`$${stats.yearlyTotal.toFixed(2)}`}
-          icon={TrendingUp}
-        />
-        <StatCard
-          title="Due This Week"
-          value={stats.upcomingPayments}
-          icon={AlertCircle}
-        />
-      </div>
+            icon={TrendingUp}
+          />
+          <StatCard
+            title="Due This Week"
+            value={stats.upcomingPayments}
+            icon={AlertCircle}
+          />
+        </div>
 
-        {/* Right: Pie Chart */}
         <Card>
           <CardHeader className="pb-2">
             <CardTitle>Monthly Spending</CardTitle>
+            <p className="text-sm text-muted-foreground">
+              ${totalMonthlySpending.toFixed(2)}/month across categories
+            </p>
           </CardHeader>
           <CardContent>
             {pieChartData.length > 0 ? (
               <ChartContainer config={chartConfig} className="h-[250px] w-full">
                 <PieChart>
                   <ChartTooltip
-                    content={
-                      <ChartTooltipContent
-                        formatter={(value: unknown) => `$${Number(value).toFixed(2)}`}
-                      />
-                    }
+                    content={({ active, payload }) => {
+                      if (active && payload && payload.length) {
+                        const data = payload[0].payload;
+                        const percentage = (
+                          (data.value / totalMonthlySpending) *
+                          100
+                        ).toFixed(1);
+                        return (
+                          <div className="rounded-lg border bg-background px-3 py-2 shadow-sm">
+                            <p className="font-medium">{data.name}</p>
+                            <p className="text-sm text-muted-foreground">
+                              {data.count} subscription
+                              {data.count > 1 ? "s" : ""}
+                            </p>
+                            <p className="font-bold text-primary">
+                              ${data.value.toFixed(2)}/mo
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {percentage}% of total
+                            </p>
+                          </div>
+                        );
+                      }
+                      return null;
+                    }}
                   />
                   <Pie
                     data={pieChartData}
@@ -228,9 +287,7 @@ export function Dashboard({ subscriptions, stats, userId, onRefresh }: Dashboard
                       <Cell key={`cell-${index}`} fill={entry.fill} />
                     ))}
                   </Pie>
-                  <ChartLegend 
-                    content={<ChartLegendContent nameKey="name" />} 
-                  />
+                  <ChartLegend content={<ChartLegendContent />} />
                 </PieChart>
               </ChartContainer>
             ) : (
@@ -242,12 +299,11 @@ export function Dashboard({ subscriptions, stats, userId, onRefresh }: Dashboard
         </Card>
       </div>
 
-      {/* Bottom Section: Subscription List */}
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
-          <CardTitle>Your Subscriptions</CardTitle>
+              <CardTitle>Your Subscriptions</CardTitle>
               <p className="text-sm text-muted-foreground mt-1">
                 {filteredSubscriptions.length === subscriptions.length
                   ? `${subscriptions.length} total`
@@ -260,25 +316,22 @@ export function Dashboard({ subscriptions, stats, userId, onRefresh }: Dashboard
             </Button>
           </div>
           <div className="space-y-4 mt-4">
-            {/* Search Bar */}
             <div className="relative">
-            <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search subscriptions..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9"
-            />
+              <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search subscriptions..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-9"
+              />
             </div>
 
-            {/* Filters and Sort */}
             <div className="flex flex-wrap items-center gap-3">
               <div className="flex items-center gap-2">
                 <Filter className="h-4 w-4 text-muted-foreground" />
                 <span className="text-sm text-muted-foreground">Filter:</span>
               </div>
-              
-              {/* Category Filter */}
+
               <Select
                 value={selectedCategory}
                 onValueChange={setSelectedCategory}
@@ -296,7 +349,6 @@ export function Dashboard({ subscriptions, stats, userId, onRefresh }: Dashboard
                 </SelectContent>
               </Select>
 
-              {/* Sort Option */}
               <Select
                 value={sortOption}
                 onValueChange={(value) => setSortOption(value as SortOption)}
@@ -308,15 +360,24 @@ export function Dashboard({ subscriptions, stats, userId, onRefresh }: Dashboard
                   <SelectItem value="name-asc">Name (A-Z)</SelectItem>
                   <SelectItem value="name-desc">Name (Z-A)</SelectItem>
                   <SelectItem value="price-asc">Price (Low to High)</SelectItem>
-                  <SelectItem value="price-desc">Price (High to Low)</SelectItem>
-                  <SelectItem value="billing-cycle-asc">Billing Cycle (Monthly → Yearly)</SelectItem>
-                  <SelectItem value="billing-cycle-desc">Billing Cycle (Yearly → Monthly)</SelectItem>
-                  <SelectItem value="date-asc">Next Billing (Earliest)</SelectItem>
-                  <SelectItem value="date-desc">Next Billing (Latest)</SelectItem>
+                  <SelectItem value="price-desc">
+                    Price (High to Low)
+                  </SelectItem>
+                  <SelectItem value="billing-cycle-asc">
+                    Billing Cycle (Monthly → Yearly)
+                  </SelectItem>
+                  <SelectItem value="billing-cycle-desc">
+                    Billing Cycle (Yearly → Monthly)
+                  </SelectItem>
+                  <SelectItem value="date-asc">
+                    Next Billing (Earliest)
+                  </SelectItem>
+                  <SelectItem value="date-desc">
+                    Next Billing (Latest)
+                  </SelectItem>
                 </SelectContent>
               </Select>
 
-              {/* Clear Filters Button */}
               {(selectedCategory !== "all" || searchQuery) && (
                 <Button
                   variant="outline"
@@ -337,19 +398,21 @@ export function Dashboard({ subscriptions, stats, userId, onRefresh }: Dashboard
         <CardContent>
           {filteredSubscriptions.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground">
-              {searchQuery ? "No subscriptions found matching your search." : "No subscriptions yet. Add your first subscription to get started!"}
+              {searchQuery
+                ? "No subscriptions found matching your search."
+                : "No subscriptions yet. Add your first subscription to get started!"}
             </div>
           ) : (
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {filteredSubscriptions.map((subscription) => (
-              <SubscriptionCard
-                key={subscription.id}
-                subscription={subscription}
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {filteredSubscriptions.map((subscription) => (
+                <SubscriptionCard
+                  key={subscription.id}
+                  subscription={subscription}
                   userId={userId}
                   onUpdate={onRefresh}
-              />
-            ))}
-          </div>
+                />
+              ))}
+            </div>
           )}
         </CardContent>
       </Card>

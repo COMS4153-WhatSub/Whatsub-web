@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { PaymentCalendar } from "@/components/payment-calendar";
+import { CalendarSkeleton } from "@/components/calendar-skeleton";
 import { getSubscriptions } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { Subscription } from "@/lib/types";
@@ -24,7 +25,7 @@ export default function CalendarPage() {
     if (!isAuthenticated || !userId) {
       if (!redirecting) {
         setRedirecting(true);
-      router.push("/login");
+        router.push("/login");
       }
       return;
     }
@@ -38,23 +39,26 @@ export default function CalendarPage() {
         setSubs(data);
       } catch (e) {
         console.error(e);
-        // If error is auth-related, redirect will be handled by API
       } finally {
         setLoading(false);
       }
     }
 
-      loadData();
+    loadData();
   }, [isAuthenticated, userId, router, authLoading, redirecting]);
 
   // Show nothing while auth is loading or redirecting
   if (authLoading || redirecting || !isAuthenticated || !userId) {
     return null;
-    }
+  }
 
-  // Show loading while data is loading
+  // Show skeleton while data is loading
   if (loading) {
-    return <div className="p-6 max-w-5xl mx-auto">Loading...</div>;
+    return (
+      <main className="container mx-auto p-6">
+        <CalendarSkeleton />
+      </main>
+    );
   }
 
   return (
