@@ -4,6 +4,8 @@ import Script from "next/script";
 import "./globals.css";
 import { Navbar } from "@/components/navbar";
 import { AuthProvider } from "@/lib/auth-context";
+import { NotificationProvider } from "@/lib/notification-context";
+import { ToastProviderWrapper } from "@/components/toast-provider-wrapper";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -25,8 +27,12 @@ export default function RootLayout({
           strategy="beforeInteractive"
         />
         <AuthProvider>
-          <Navbar />
-          {children}
+          <NotificationProvider>
+            <ToastProviderWrapper>
+              <Navbar />
+              {children}
+            </ToastProviderWrapper>
+          </NotificationProvider>
         </AuthProvider>
       </body>
     </html>

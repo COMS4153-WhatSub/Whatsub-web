@@ -35,3 +35,16 @@ export interface SubscriptionStats {
   yearlyTotal: number;
   upcomingPayments: number;
 }
+
+export interface Notification {
+  id: number;
+  subscription_id: number;
+  user_id: string;
+  notification_type: "email" | "sms" | "push";
+  subject: string | null;
+  message: string | null;
+  status: "queued" | "sent" | "delivered" | "failed";
+  read_at: string | null;
+  delivered_at: string | null;
+  created_at: string;
+}

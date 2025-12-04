@@ -23,7 +23,10 @@ import {
   type AdminStats,
 } from "@/lib/api";
 import { Subscription } from "@/lib/types";
-import { Users, CreditCard, TrendingUp, DollarSign, Loader2, Search, Filter, X } from "lucide-react";
+import { Users, CreditCard, TrendingUp, DollarSign, Loader2, Search, Filter, X, ChevronLeft, ChevronRight } from "lucide-react";
+import { parseISO, format } from "date-fns";
+import { UserDetailDialog } from "@/components/user-detail-dialog";
+import { useToast } from "@/lib/toast";
 import { Pie, PieChart, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid } from "recharts";
 import {
   ChartContainer,
@@ -57,6 +60,7 @@ const BILLING_TYPE_COLORS: Record<string, string> = {
 export default function AdminPage() {
   const { isAuthenticated, isLoading: authLoading, isAdmin } = useAuth();
   const router = useRouter();
+  const toast = useToast();
   const [loading, setLoading] = useState(true);
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
@@ -67,6 +71,14 @@ export default function AdminPage() {
   // User search and filter states
   const [userSearchQuery, setUserSearchQuery] = useState("");
   const [userRoleFilter, setUserRoleFilter] = useState<string>("all");
+  
+  // User detail dialog state
+  const [selectedUser, setSelectedUser] = useState<AdminUser | null>(null);
+  const [userDetailOpen, setUserDetailOpen] = useState(false);
+  
+  // Pagination for Recent Users
+  const [recentUsersPage, setRecentUsersPage] = useState(1);
+  const recentUsersPerPage = 5;
   
   // Subscription search and filter states
   const [subscriptionSearchQuery, setSubscriptionSearchQuery] = useState("");
@@ -163,7 +175,8 @@ export default function AdminPage() {
       const searchLower = userSearchQuery.toLowerCase();
       const matchesSearch =
         user.email.toLowerCase().includes(searchLower) ||
-        (user.full_name?.toLowerCase().includes(searchLower) ?? false);
+        (user.full_name?.toLowerCase().includes(searchLower) ?? false) ||
+        user.id.toLowerCase().includes(searchLower);
       
       // Role filter
       const matchesRole = userRoleFilter === "all" || user.role === userRoleFilter;
@@ -171,6 +184,25 @@ export default function AdminPage() {
       return matchesSearch && matchesRole;
     });
   }, [users, userSearchQuery, userRoleFilter]);
+
+  // Reset pagination when filters change
+  useEffect(() => {
+    setRecentUsersPage(1);
+  }, [userSearchQuery, userRoleFilter]);
+
+  // Paginated recent users
+  const paginatedRecentUsers = useMemo(() => {
+    const startIndex = (recentUsersPage - 1) * recentUsersPerPage;
+    const endIndex = startIndex + recentUsersPerPage;
+    return filteredUsers.slice(startIndex, endIndex);
+  }, [filteredUsers, recentUsersPage, recentUsersPerPage]);
+
+  const totalRecentUsersPages = Math.ceil(filteredUsers.length / recentUsersPerPage);
+
+  const handleUserClick = (user: AdminUser) => {
+    setSelectedUser(user);
+    setUserDetailOpen(true);
+  };
 
   // Filter subscriptions
   const filteredSubscriptions = useMemo(() => {
@@ -460,25 +492,66 @@ export default function AdminPage() {
           <div className="grid gap-4 md:grid-cols-2">
             <Card>
               <CardHeader>
-                <CardTitle>Recent Users</CardTitle>
+                <div className="flex items-center justify-between">
+                  <CardTitle>Recent Users</CardTitle>
+                  {filteredUsers.length > recentUsersPerPage && (
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <span>
+                        Page {recentUsersPage} of {totalRecentUsersPages}
+                      </span>
+                    </div>
+                  )}
+                </div>
               </CardHeader>
               <CardContent>
                 <div className="space-y-2">
-                  {users.slice(0, 5).map((user) => (
-                    <div
-                      key={user.id}
-                      className="flex items-center justify-between p-2 border rounded"
-                    >
-                      <div>
-                        <p className="font-medium">{user.full_name || user.email}</p>
-                        <p className="text-sm text-muted-foreground">{user.email}</p>
-                      </div>
-                      <Badge variant={user.role === "admin" ? "default" : "secondary"}>
-                        {user.role}
-                      </Badge>
+                  {paginatedRecentUsers.length === 0 ? (
+                    <div className="text-center py-8 text-muted-foreground">
+                      No users found
                     </div>
-                  ))}
+                  ) : (
+                    paginatedRecentUsers.map((user) => (
+                      <div
+                        key={user.id}
+                        onClick={() => handleUserClick(user)}
+                        className="flex items-center justify-between p-2 border rounded cursor-pointer hover:bg-accent transition-colors"
+                      >
+                        <div>
+                          <p className="font-medium">{user.full_name || user.email}</p>
+                          <p className="text-sm text-muted-foreground">{user.email}</p>
+                        </div>
+                        <Badge variant={user.role === "admin" ? "default" : "secondary"}>
+                          {user.role}
+                        </Badge>
+                      </div>
+                    ))
+                  )}
                 </div>
+                {totalRecentUsersPages > 1 && (
+                  <div className="flex items-center justify-between mt-4 pt-4 border-t">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setRecentUsersPage((p) => Math.max(1, p - 1))}
+                      disabled={recentUsersPage === 1}
+                    >
+                      <ChevronLeft className="h-4 w-4 mr-1" />
+                      Previous
+                    </Button>
+                    <span className="text-sm text-muted-foreground">
+                      {filteredUsers.length} total users
+                    </span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setRecentUsersPage((p) => Math.min(totalRecentUsersPages, p + 1))}
+                      disabled={recentUsersPage === totalRecentUsersPages}
+                    >
+                      Next
+                      <ChevronRight className="h-4 w-4 ml-1" />
+                    </Button>
+                  </div>
+                )}
               </CardContent>
             </Card>
 
@@ -774,7 +847,8 @@ export default function AdminPage() {
                   filteredUsers.map((user) => (
                   <div
                     key={user.id}
-                    className="flex items-center justify-between p-4 border rounded-lg"
+                    onClick={() => handleUserClick(user)}
+                    className="flex items-center justify-between p-4 border rounded-lg cursor-pointer hover:bg-accent transition-colors"
                   >
                     <div className="flex-1">
                       <p className="font-medium">{user.full_name || "No name"}</p>
@@ -903,7 +977,7 @@ export default function AdminPage() {
                         {sub.category} • ${sub.price}/{sub.billingCycle}
                       </p>
                       <p className="text-sm text-muted-foreground">
-                        User: {sub.userId} • Next billing: {new Date(sub.nextBillingDate).toLocaleDateString()}
+                        User: {sub.userId} • Next billing: {format(parseISO(sub.nextBillingDate), "MMM dd, yyyy")}
                       </p>
                     </div>
                     <Badge variant={sub.status === "active" ? "default" : "secondary"}>
@@ -917,6 +991,14 @@ export default function AdminPage() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* User Detail Dialog */}
+      <UserDetailDialog
+        user={selectedUser}
+        open={userDetailOpen}
+        onOpenChange={setUserDetailOpen}
+        allSubscriptions={subscriptions}
+      />
     </div>
   );
 }

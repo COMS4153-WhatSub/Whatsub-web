@@ -7,10 +7,12 @@ import { DashboardSkeleton } from "@/components/dashboard-skeleton";
 import { getSubscriptions, calculateStats } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { Subscription, SubscriptionStats } from "@/lib/types";
+import { useToast } from "@/lib/toast";
 
 export default function Home() {
   const { isAuthenticated, userId, isLoading: authLoading } = useAuth();
   const router = useRouter();
+  const toast = useToast();
   const [subs, setSubs] = useState<Subscription[]>([]);
   const [stats, setStats] = useState<SubscriptionStats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -40,8 +42,11 @@ export default function Home() {
             setSubs(data);
             setStats(calculateStats(data));
         } catch (e) {
-            console.error(e);
-        // If error is auth-related, redirect will be handled by API
+            // If error is auth-related, redirect will be handled by API
+            // Only show toast for non-auth errors
+            if (e instanceof Error && !e.message.includes("401") && !e.message.includes("403")) {
+              toast.showError(e, "Failed to load subscriptions");
+            }
         } finally {
             setLoading(false);
         }
@@ -72,8 +77,9 @@ export default function Home() {
       const data = await getSubscriptions(userId);
       setSubs(data);
       setStats(calculateStats(data));
+      toast.showSuccess("Subscriptions refreshed");
     } catch (e) {
-      console.error(e);
+      toast.showError(e, "Failed to refresh subscriptions");
     } finally {
       setLoading(false);
     }

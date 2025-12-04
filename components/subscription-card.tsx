@@ -9,6 +9,8 @@ import { Calendar, DollarSign, Edit, Trash2 } from "lucide-react";
 import { SubscriptionForm } from "@/components/subscription-form";
 import { DeleteConfirmationDialog } from "@/components/delete-confirmation-dialog";
 import { deleteSubscription } from "@/lib/api";
+import { parseISO, format } from "date-fns";
+import { useToast } from "@/lib/toast";
 
 interface SubscriptionCardProps {
   subscription: Subscription;
@@ -20,16 +22,17 @@ export function SubscriptionCard({ subscription, userId, onUpdate }: Subscriptio
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const toast = useToast();
 
   const handleDelete = async () => {
     setDeleting(true);
     try {
       await deleteSubscription(subscription.id);
+      toast.showSuccess(`${subscription.serviceName} deleted successfully`);
       onUpdate();
       setDeleteOpen(false);
     } catch (error) {
-      console.error("Error deleting subscription:", error);
-      alert("Failed to delete subscription. Please try again.");
+      toast.showError(error, "Failed to delete subscription");
     } finally {
       setDeleting(false);
     }
@@ -82,7 +85,7 @@ export function SubscriptionCard({ subscription, userId, onUpdate }: Subscriptio
         <div className="flex items-center gap-2">
           <Calendar className="h-4 w-4" />
           <span className="text-sm">
-            Next: {new Date(subscription.nextBillingDate).toLocaleDateString()}
+            Next: {format(parseISO(subscription.nextBillingDate), "MMM dd, yyyy")}
           </span>
         </div>
         <Badge>{subscription.status}</Badge>

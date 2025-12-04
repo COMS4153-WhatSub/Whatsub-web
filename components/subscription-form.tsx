@@ -34,6 +34,7 @@ import {
   CreateSubscriptionPayload,
   UpdateSubscriptionPayload,
 } from "@/lib/api";
+import { useToast } from "@/lib/toast";
 
 interface SubscriptionFormProps {
   open: boolean;
@@ -52,6 +53,7 @@ export function SubscriptionForm({
 }: SubscriptionFormProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const toast = useToast();
   const [billingDate, setBillingDate] = useState<Date | undefined>(undefined);
   const [formData, setFormData] = useState({
     plan: "",
@@ -133,11 +135,14 @@ export function SubscriptionForm({
           billing_date: formattedDate,
         };
         await createSubscription(createPayload);
+        toast.showSuccess("Subscription created successfully");
       }
       onSuccess();
       onOpenChange(false);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to save subscription");
+      const errorMessage = err instanceof Error ? err.message : "Failed to save subscription";
+      setError(errorMessage);
+      toast.showError(err, "Failed to save subscription");
     } finally {
       setLoading(false);
     }

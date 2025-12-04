@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { LayoutDashboard, Calendar, Bell, LogOut, Shield } from "lucide-react";
+import { LayoutDashboard, Calendar, LogOut, Shield } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -13,6 +13,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/lib/auth-context";
+import { NotificationBell } from "@/components/notification-bell";
 
 export function Navbar() {
   const pathname = usePathname();
@@ -92,9 +93,7 @@ export function Navbar() {
               <div className="h-8 w-8 rounded-full bg-muted animate-pulse" />
             ) : user ? (
               <>
-                <Button variant="ghost" size="icon" className="relative">
-                  <Bell className="h-5 w-5" />
-                </Button>
+                <NotificationBell />
 
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
@@ -149,13 +148,7 @@ export function Navbar() {
               <div className="h-8 w-8 rounded-full bg-muted animate-pulse" />
             ) : user ? (
               <>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="relative h-9 w-9"
-                >
-                  <Bell className="h-5 w-5" />
-                </Button>
+                <NotificationBell />
 
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>

@@ -6,10 +6,12 @@ import { PaymentCalendar } from "@/components/payment-calendar";
 import { getSubscriptions } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { Subscription } from "@/lib/types";
+import { useToast } from "@/lib/toast";
 
 export default function CalendarPage() {
   const { isAuthenticated, userId, isLoading: authLoading } = useAuth();
   const router = useRouter();
+  const toast = useToast();
   const [subs, setSubs] = useState<Subscription[]>([]);
   const [loading, setLoading] = useState(true);
   const [redirecting, setRedirecting] = useState(false);
@@ -37,8 +39,10 @@ export default function CalendarPage() {
         const data = await getSubscriptions(userId);
         setSubs(data);
       } catch (e) {
-        console.error(e);
         // If error is auth-related, redirect will be handled by API
+        if (e instanceof Error && !e.message.includes("401") && !e.message.includes("403")) {
+          toast.showError(e, "Failed to load subscriptions");
+        }
       } finally {
         setLoading(false);
       }
@@ -54,7 +58,14 @@ export default function CalendarPage() {
 
   // Show loading while data is loading
   if (loading) {
-    return <div className="p-6 max-w-5xl mx-auto">Loading...</div>;
+    return (
+      <main className="container mx-auto p-6 max-w-5xl">
+        <div className="space-y-4">
+          <div className="h-8 w-48 bg-muted animate-pulse rounded-md" />
+          <div className="h-[600px] bg-muted animate-pulse rounded-lg" />
+        </div>
+      </main>
+    );
   }
 
   return (
