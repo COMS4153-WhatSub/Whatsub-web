@@ -542,8 +542,8 @@ export async function getAdminStats(): Promise<AdminStats> {
 }
 
 // Notification API functions
-
-const NOTIFICATION_SERVICE_URL = process.env.NEXT_PUBLIC_NOTIFICATION_SERVICE_URL || "http://34.42.50.174:8082";
+// Use composite service URL to avoid mixed content issues (HTTPS -> HTTP)
+// The composite service will proxy requests to the notification service
 
 /**
  * Get notifications for a user
@@ -553,7 +553,7 @@ export async function getNotifications(
   unreadOnly: boolean = false
 ): Promise<Notification[]> {
   try {
-    const url = `${NOTIFICATION_SERVICE_URL}/notifications?user_id=${userId}${unreadOnly ? "&unread_only=true" : ""}`;
+    const url = `${API_BASE_URL}/notifications?user_id=${userId}${unreadOnly ? "&unread_only=true" : ""}`;
     
     // Create abort controller for timeout
     const controller = new AbortController();
@@ -594,7 +594,7 @@ export async function getNotifications(
  */
 export async function getUnreadNotificationCount(userId: string): Promise<number> {
   try {
-    const url = `${NOTIFICATION_SERVICE_URL}/notifications/unread-count?user_id=${userId}`;
+    const url = `${API_BASE_URL}/notifications/unread-count?user_id=${userId}`;
     
     // Create abort controller for timeout
     const controller = new AbortController();
@@ -635,7 +635,7 @@ export async function markNotificationAsRead(
   userId: string
 ): Promise<boolean> {
   try {
-    const url = `${NOTIFICATION_SERVICE_URL}/notifications/${notificationId}/read?user_id=${userId}`;
+    const url = `${API_BASE_URL}/notifications/${notificationId}/read?user_id=${userId}`;
     const res = await fetch(url, {
       method: "PATCH",
       headers: {
