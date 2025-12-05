@@ -1,60 +1,33 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo } from "react";
 import { useNotifications } from "@/lib/notification-context";
 import { Notification } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatDistanceToNow, format, parseISO, isValid } from "date-fns";
-import { X, ChevronDown, ChevronUp } from "lucide-react";
+import { Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-function NotificationItem({ 
-  notification, 
-  onHide 
-}: { 
+function NotificationItem({
+  notification,
+  onMarkAsRead,
+}: {
   notification: Notification;
-  onHide: () => void;
+  onMarkAsRead: () => void;
 }) {
-  const { markAsRead } = useNotifications();
-  const [isExpanded, setIsExpanded] = useState(false);
   const isRead = !!notification.read_at;
 
-  // Check if message is long enough to need expansion
-  const messageLines = notification.message?.split('\n') || [];
-  const needsExpansion = messageLines.length > 2 || (notification.message?.length || 0) > 150;
-
-  const handleClick = (e: React.MouseEvent) => {
-    // Don't mark as read if clicking on action buttons
-    if ((e.target as HTMLElement).closest('button')) {
-      return;
-    }
-    
-    if (!isRead) {
-      markAsRead(notification.id);
-    }
-    
-    // Toggle expansion on click
-    if (needsExpansion) {
-      setIsExpanded(!isExpanded);
-    }
-  };
-
-  const handleHide = (e: React.MouseEvent) => {
+  const handleMarkAsRead = (e: React.MouseEvent) => {
     e.stopPropagation();
-    // Mark as read when hiding
-    if (!isRead) {
-      markAsRead(notification.id);
-    }
-    onHide();
+    onMarkAsRead();
   };
 
   // Extract billing date from message if it's a payment notification
   const billingDate = useMemo(() => {
     if (!notification.message) return null;
-    
-    // Try to extract date from message like "due on 2025-12-05"
+
     const dateMatch = notification.message.match(/due on (\d{4}-\d{2}-\d{2})/i);
     if (dateMatch) {
       const dateStr = dateMatch[1];
@@ -66,22 +39,23 @@ function NotificationItem({
     return null;
   }, [notification.message]);
 
-  // Format time display - show billing date if available, otherwise show notification time
+  // Format time display
   const timeDisplay = useMemo(() => {
     if (billingDate) {
       const now = new Date();
       const diffMs = billingDate.getTime() - now.getTime();
       const diffHours = diffMs / (1000 * 60 * 60);
-      
+
       if (diffHours < 0) {
         return `Due ${formatDistanceToNow(billingDate, { addSuffix: true })}`;
       } else if (diffHours < 24) {
-        return `Due in ${Math.round(diffHours)} ${Math.round(diffHours) === 1 ? 'hour' : 'hours'}`;
+        return `Due in ${Math.round(diffHours)} ${
+          Math.round(diffHours) === 1 ? "hour" : "hours"
+        }`;
       } else {
-        return `Due on ${format(billingDate, 'MMM d, yyyy')}`;
+        return `Due on ${format(billingDate, "MMM d, yyyy")}`;
       }
     }
-    // Fallback to notification creation time
     return formatDistanceToNow(new Date(notification.created_at), {
       addSuffix: true,
     });
@@ -91,76 +65,46 @@ function NotificationItem({
     <div
       className={cn(
         "group relative border-b transition-colors",
-        !isRead ? "bg-blue-50/50 dark:bg-blue-950/20" : "bg-background",
-        "hover:bg-accent"
+        !isRead ? "bg-blue-50/50 dark:bg-blue-950/20" : "bg-background"
       )}
     >
-      <div
-        className="p-4 cursor-pointer"
-        onClick={handleClick}
-      >
-        <div className="flex items-start gap-3">
+      <div className="p-5">
+        <div className="flex items-center gap-4">
           {/* Unread indicator */}
           {!isRead && (
-            <div className="h-2 w-2 rounded-full bg-blue-500 flex-shrink-0 mt-2" />
+            <div className="h-2.5 w-2.5 rounded-full bg-blue-500 shrink-0" />
           )}
-          
+
           <div className="flex-1 min-w-0">
-            <div className="flex items-start justify-between gap-2">
-              <h4 className={cn(
-                "text-sm font-semibold leading-tight",
-                !isRead && "font-bold"
-              )}>
-                {notification.subject || "Notification"}
-              </h4>
-              
-              {/* Hide button - appears on hover */}
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                className="opacity-0 group-hover:opacity-100 transition-opacity h-6 w-6 flex-shrink-0"
-                onClick={handleHide}
-                aria-label="Hide notification"
-              >
-                <X className="h-3.5 w-3.5" />
-              </Button>
-            </div>
-            
-            {notification.message && (
-              <div className="mt-2">
-                <p className={cn(
-                  "text-xs text-muted-foreground whitespace-pre-wrap",
-                  !isExpanded && needsExpansion && "line-clamp-3"
-                )}>
-                  {notification.message}
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <h4
+                  className={cn(
+                    "text-base leading-tight",
+                    !isRead ? "font-semibold" : "font-medium"
+                  )}
+                >
+                  {notification.subject || "Notification"}
+                </h4>
+                <p className="text-sm text-muted-foreground mt-1.5">
+                  {timeDisplay}
                 </p>
-                {needsExpansion && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setIsExpanded(!isExpanded);
-                    }}
-                    className="mt-1.5 text-xs text-primary hover:underline flex items-center gap-1"
-                  >
-                    {isExpanded ? (
-                      <>
-                        <ChevronUp className="h-3 w-3" />
-                        Show less
-                      </>
-                    ) : (
-                      <>
-                        <ChevronDown className="h-3 w-3" />
-                        Show more
-                      </>
-                    )}
-                  </button>
-                )}
               </div>
-            )}
-            
-            <p className="text-xs text-muted-foreground mt-2.5">
-              {timeDisplay}
-            </p>
+
+              {/* Mark as read button - only show if unread */}
+              {!isRead && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 shrink-0"
+                  onClick={handleMarkAsRead}
+                  aria-label="Mark as read"
+                  title="Mark as read"
+                >
+                  <Check className="h-5 w-5 text-gray-500 dark:text-gray-400" />
+                </Button>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -169,29 +113,28 @@ function NotificationItem({
 }
 
 export function NotificationList() {
-  const { notifications, isLoading, markAllAsRead, refreshNotifications } =
-    useNotifications();
-  const [hiddenIds, setHiddenIds] = useState<Set<number>>(new Set());
+  const {
+    notifications,
+    isLoading,
+    markAllAsRead,
+    markAsRead,
+    refreshNotifications,
+  } = useNotifications();
 
   useEffect(() => {
     refreshNotifications();
   }, [refreshNotifications]);
 
-  // Filter out hidden notifications
-  const visibleNotifications = notifications.filter(
-    (n) => !hiddenIds.has(n.id)
-  );
-
-  const unreadCount = visibleNotifications.filter((n) => !n.read_at).length;
+  const unreadCount = notifications.filter((n) => !n.read_at).length;
 
   return (
     <div className="flex flex-col h-[500px] max-h-[80vh]">
       {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b bg-muted/30">
+      <div className="flex items-center justify-between p-5 border-b bg-muted/30">
         <div className="flex items-center gap-2">
-          <h3 className="font-semibold text-base">Notifications</h3>
+          <h3 className="font-semibold text-lg">Notifications</h3>
           {unreadCount > 0 && (
-            <span className="text-xs text-muted-foreground">
+            <span className="text-sm text-muted-foreground">
               ({unreadCount} unread)
             </span>
           )}
@@ -201,7 +144,7 @@ export function NotificationList() {
             variant="ghost"
             size="sm"
             onClick={markAllAsRead}
-            className="text-xs h-7"
+            className="text-sm h-8"
           >
             Mark all as read
           </Button>
@@ -211,27 +154,26 @@ export function NotificationList() {
       {/* Notifications list */}
       <ScrollArea className="flex-1">
         {isLoading ? (
-          <div className="p-4 space-y-3">
+          <div className="p-5 space-y-4">
             {[1, 2, 3].map((i) => (
               <div key={i} className="space-y-2">
-                <Skeleton className="h-4 w-3/4" />
-                <Skeleton className="h-3 w-full" />
-                <Skeleton className="h-3 w-1/2" />
+                <Skeleton className="h-5 w-3/4" />
+                <Skeleton className="h-4 w-1/2" />
               </div>
             ))}
           </div>
-        ) : visibleNotifications.length === 0 ? (
-          <div className="p-8 text-center text-muted-foreground">
-            <p className="text-sm">No notifications</p>
-            <p className="text-xs mt-1">You're all caught up!</p>
+        ) : notifications.length === 0 ? (
+          <div className="p-12 text-center text-muted-foreground">
+            <p className="text-base">No notifications</p>
+            <p className="text-sm mt-1">You're all caught up!</p>
           </div>
         ) : (
           <div>
-            {visibleNotifications.map((notification) => (
+            {notifications.map((notification) => (
               <NotificationItem
                 key={notification.id}
                 notification={notification}
-                onHide={() => setHiddenIds((prev) => new Set(prev).add(notification.id))}
+                onMarkAsRead={() => markAsRead(notification.id)}
               />
             ))}
           </div>
@@ -240,4 +182,3 @@ export function NotificationList() {
     </div>
   );
 }
-

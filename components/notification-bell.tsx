@@ -29,10 +29,16 @@ export function NotificationBell() {
           )}
         </Button>
       </PopoverTrigger>
-      <PopoverContent align="end" className="w-80 p-0">
+      <PopoverContent
+        align="end"
+        side="bottom"
+        className="w-[calc(100vw-1rem)] max-w-[380px] p-0 mr-2"
+        sideOffset={8}
+        collisionPadding={8}
+        avoidCollisions={true}
+      >
         <NotificationList />
       </PopoverContent>
     </Popover>
   );
 }
-
