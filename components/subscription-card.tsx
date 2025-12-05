@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Subscription } from "@/lib/types";
 import { Calendar, DollarSign, Edit, Trash2 } from "lucide-react";
 import { SubscriptionForm } from "@/components/subscription-form";
@@ -16,9 +17,19 @@ interface SubscriptionCardProps {
   subscription: Subscription;
   userId: string;
   onUpdate: () => void;
+  selectionMode?: boolean;
+  selected?: boolean;
+  onSelectionChange?: (subscriptionId: string, selected: boolean) => void;
 }
 
-export function SubscriptionCard({ subscription, userId, onUpdate }: SubscriptionCardProps) {
+export function SubscriptionCard({ 
+  subscription, 
+  userId, 
+  onUpdate,
+  selectionMode = false,
+  selected = false,
+  onSelectionChange,
+}: SubscriptionCardProps) {
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -38,40 +49,55 @@ export function SubscriptionCard({ subscription, userId, onUpdate }: Subscriptio
     }
   };
 
+  const handleCheckboxChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (onSelectionChange) {
+      onSelectionChange(subscription.id, e.target.checked);
+    }
+  };
+
   return (
     <>
-    <Card>
+    <Card className={selected && selectionMode ? "ring-2 ring-primary" : ""}>
       <CardHeader>
           <div className="flex items-start justify-between">
             <div className="flex items-center gap-3 flex-1">
-          <div className="text-3xl">{subscription.icon || "📦"}</div>
+              {selectionMode && (
+                <Checkbox
+                  checked={selected}
+                  onChange={handleCheckboxChange}
+                  className="mt-1"
+                />
+              )}
+              <div className="text-3xl">{subscription.icon || "📦"}</div>
               <div className="flex-1">
-            <CardTitle className="text-lg">
-              {subscription.serviceName}
-            </CardTitle>
-            <p className="text-sm text-muted-foreground">
-              {subscription.description}
-            </p>
+                <CardTitle className="text-lg">
+                  {subscription.serviceName}
+                </CardTitle>
+                <p className="text-sm text-muted-foreground">
+                  {subscription.description}
+                </p>
               </div>
             </div>
-            <div className="flex gap-1">
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8"
-                onClick={() => setEditOpen(true)}
-              >
-                <Edit className="h-4 w-4" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8 text-destructive hover:text-destructive"
-                onClick={() => setDeleteOpen(true)}
-              >
-                <Trash2 className="h-4 w-4" />
-              </Button>
-          </div>
+            {!selectionMode && (
+              <div className="flex gap-1">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={() => setEditOpen(true)}
+                >
+                  <Edit className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 text-destructive hover:text-destructive"
+                  onClick={() => setDeleteOpen(true)}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+            )}
         </div>
       </CardHeader>
       <CardContent className="space-y-3">
