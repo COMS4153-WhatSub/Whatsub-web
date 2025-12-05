@@ -94,6 +94,8 @@ async function getPayloadSignatureHeader(
     const secretKey = process.env.NEXT_PUBLIC_PAYLOAD_SIGNATURE_SECRET;
     if (!secretKey) {
         // Signature verification not enabled - backward compatible
+        // But if backend requires it, this will cause an error
+        console.warn('NEXT_PUBLIC_PAYLOAD_SIGNATURE_SECRET not set. If backend requires payload signatures, requests will fail.');
         return {};
     }
     
@@ -103,9 +105,11 @@ async function getPayloadSignatureHeader(
         const signature = await generatePayloadSignature(payload as Record<string, unknown>, secretKey);
         if (signature) {
             return { "X-Payload-Signature": signature };
+        } else {
+            console.error('Payload signature generation returned empty string. Check Web Crypto API availability.');
         }
     } catch (error) {
-        console.warn('Failed to generate payload signature:', error);
+        console.error('Failed to generate payload signature:', error);
     }
     
     return {};
@@ -280,7 +284,7 @@ export async function updateSubscription(
     ) as UpdateSubscriptionPayload;
     
     const signatureHeader = await getPayloadSignatureHeader(cleanPayload);
-    const res = await fetch(`${API_BASE_URL}/subscriptions/${subscriptionId}`, {
+    const res = await fetch(`${API_BASE_URL}/subscriptions/id/${subscriptionId}`, {
       method: "PATCH",
       headers: {
         "Content-Type": "application/json",
@@ -310,7 +314,7 @@ export async function updateSubscription(
 
 export async function deleteSubscription(subscriptionId: string): Promise<void> {
   try {
-    const res = await fetch(`${API_BASE_URL}/subscriptions/${subscriptionId}`, {
+    const res = await fetch(`${API_BASE_URL}/subscriptions/id/${subscriptionId}`, {
       method: "DELETE",
       headers: {
         ...getAuthHeaders(),
@@ -328,6 +332,129 @@ export async function deleteSubscription(subscriptionId: string): Promise<void> 
     }
   } catch (error) {
     console.error("Error deleting subscription:", error);
+    throw error;
+  }
+}
+
+// Batch deletion API functions
+
+export interface BatchDeleteRequest {
+  subscription_ids: number[];
+  idempotency_key?: string;
+}
+
+export interface BatchJobResponse {
+  batch_id: string;
+  status: "pending" | "processing" | "completed" | "failed";
+  status_url: string;
+  total_count: number;
+  message: string;
+}
+
+export interface BatchStatusResponse {
+  batch_id: string;
+  status: "pending" | "processing" | "completed" | "failed";
+  created_at: string;
+  updated_at: string;
+  completed_at: string | null;
+  total_count: number;
+  processed_count: number;
+  success_count: number;
+  failed_count: number;
+  progress: number;
+  results?: Array<{
+    index: number;
+    subscription_id: number;
+    success: boolean;
+    error?: string;
+  }>;
+  error?: string;
+}
+
+/**
+ * Create a batch deletion job
+ */
+export async function deleteBatchSubscriptions(
+  subscriptionIds: number[],
+  idempotencyKey?: string
+): Promise<BatchJobResponse> {
+  try {
+    const payload = {
+      subscription_ids: subscriptionIds,
+      ...(idempotencyKey && { idempotency_key: idempotencyKey }),
+    };
+    
+    const signatureHeader = await getPayloadSignatureHeader(payload);
+    
+    const res = await fetch(`${API_BASE_URL}/subscriptions/batch-delete`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...getAuthHeaders(),
+        ...signatureHeader,
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (!res.ok) {
+      if (res.status === 401 || res.status === 403) {
+        handleAuthError();
+        throw new Error("Authentication failed. Please log in again.");
+      }
+      
+      let errorDetail = "Failed to create batch deletion job";
+      try {
+        const errorData = await res.json();
+        errorDetail = errorData.detail || errorData.message || JSON.stringify(errorData);
+      } catch {
+        errorDetail = `HTTP ${res.status}: ${res.statusText}`;
+      }
+      
+      console.error("Batch deletion error:", {
+        status: res.status,
+        statusText: res.statusText,
+        detail: errorDetail,
+      });
+      
+      throw new Error(errorDetail);
+    }
+
+    return await res.json();
+  } catch (error) {
+    console.error("Error creating batch deletion job:", error);
+    if (error instanceof Error) {
+      throw error;
+    }
+    throw new Error("Failed to create batch deletion job");
+  }
+}
+
+/**
+ * Get batch deletion job status
+ */
+export async function getBatchDeletionStatus(batchId: string): Promise<BatchStatusResponse> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/subscriptions/batch/${batchId}/status`, {
+      headers: {
+        ...getAuthHeaders(),
+      },
+    });
+
+    if (!res.ok) {
+      if (res.status === 401 || res.status === 403) {
+        handleAuthError();
+        throw new Error("Authentication failed. Please log in again.");
+      }
+      if (res.status === 404) {
+        throw new Error("Batch job not found");
+      }
+      const error = await res.json().catch(() => ({ detail: "Failed to get batch job status" }));
+      throw new Error(error.detail || "Failed to get batch job status");
+    }
+
+    return await res.json();
+  } catch (error) {
+    console.error("Error getting batch deletion status:", error);
     throw error;
   }
 }
@@ -552,12 +679,17 @@ export async function getNotifications(
   userId: string,
   unreadOnly: boolean = false
 ): Promise<Notification[]> {
+  let timeoutId: NodeJS.Timeout | null = null;
+  const url = `${API_BASE_URL}/notifications?user_id=${userId}${unreadOnly ? "&unread_only=true" : ""}`;
+  
   try {
-    const url = `${API_BASE_URL}/notifications?user_id=${userId}${unreadOnly ? "&unread_only=true" : ""}`;
-    
     // Create abort controller for timeout
+    // Backend timeout is 30 seconds, so set frontend timeout to 40 seconds to allow for network overhead
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+    timeoutId = setTimeout(() => {
+      console.warn(`Notification request timeout after 40s: ${url}`);
+      controller.abort();
+    }, 40000); // 40 second timeout
     
     const res = await fetch(url, {
       headers: {
@@ -567,7 +699,10 @@ export async function getNotifications(
       signal: controller.signal,
     });
     
-    clearTimeout(timeoutId);
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+      timeoutId = null;
+    }
 
     if (!res.ok) {
       if (res.status === 401 || res.status === 403) {
@@ -579,6 +714,20 @@ export async function getNotifications(
 
     return await res.json();
   } catch (error) {
+    // Clear timeout if still set
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+    }
+    
+    // Handle abort errors (timeouts) gracefully
+    if (
+      (error instanceof Error && (error.name === 'AbortError' || error.message.includes('aborted'))) ||
+      (error instanceof DOMException && error.name === 'AbortError')
+    ) {
+      console.warn(`Notification request timed out. URL: ${url}`);
+      return [];
+    }
+    
     // Handle network errors gracefully
     if (error instanceof TypeError && error.message.includes('fetch')) {
       console.warn("Notification service unavailable or network error");
@@ -593,12 +742,14 @@ export async function getNotifications(
  * Get unread notification count for a user
  */
 export async function getUnreadNotificationCount(userId: string): Promise<number> {
+  let timeoutId: NodeJS.Timeout | null = null;
   try {
     const url = `${API_BASE_URL}/notifications/unread-count?user_id=${userId}`;
     
     // Create abort controller for timeout
+    // Backend timeout is 30 seconds, so set frontend timeout to 35 seconds to allow for network overhead
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+    timeoutId = setTimeout(() => controller.abort(), 35000); // 35 second timeout
     
     const res = await fetch(url, {
       headers: {
@@ -608,7 +759,10 @@ export async function getUnreadNotificationCount(userId: string): Promise<number
       signal: controller.signal,
     });
     
-    clearTimeout(timeoutId);
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+      timeoutId = null;
+    }
 
     if (!res.ok) {
       return 0;
@@ -617,6 +771,20 @@ export async function getUnreadNotificationCount(userId: string): Promise<number
     const data = await res.json();
     return data.unread_count || 0;
   } catch (error) {
+    // Clear timeout if still set
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+    }
+    
+    // Handle abort errors (timeouts) gracefully
+    if (
+      (error instanceof Error && (error.name === 'AbortError' || error.message.includes('aborted'))) ||
+      (error instanceof DOMException && error.name === 'AbortError')
+    ) {
+      console.warn("Unread count request timed out");
+      return 0;
+    }
+    
     // Handle network errors gracefully
     if (error instanceof TypeError && error.message.includes('fetch')) {
       console.warn("Notification service unavailable for unread count");

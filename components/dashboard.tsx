@@ -14,6 +14,7 @@ import {
 import { StatCard } from "@/components/stat-card";
 import { SubscriptionCard } from "@/components/subscription-card";
 import { SubscriptionForm } from "@/components/subscription-form";
+import { BatchDeleteDialog } from "@/components/batch-delete-dialog";
 import { Subscription, SubscriptionStats } from "@/lib/types";
 import {
   CreditCard,
@@ -24,7 +25,12 @@ import {
   Plus,
   Filter,
   X,
+  Trash2,
+  CheckSquare,
+  Square,
 } from "lucide-react";
+import { deleteBatchSubscriptions } from "@/lib/api";
+import { useToast } from "@/lib/toast";
 import { Pie, PieChart, Cell } from "recharts";
 import {
   ChartContainer,
@@ -86,6 +92,11 @@ export function Dashboard({
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [sortOption, setSortOption] = useState<SortOption>("name-asc");
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [batchDeleteOpen, setBatchDeleteOpen] = useState(false);
+  const [batchId, setBatchId] = useState<string | null>(null);
+  const toast = useToast();
 
   const availableCategories = useMemo(() => {
     const categories = new Set<string>();
@@ -209,6 +220,50 @@ export function Dashboard({
     0
   );
 
+  const handleSelectionChange = (subscriptionId: string, selected: boolean) => {
+    setSelectedIds((prev) => {
+      const newSet = new Set(prev);
+      if (selected) {
+        newSet.add(subscriptionId);
+      } else {
+        newSet.delete(subscriptionId);
+      }
+      return newSet;
+    });
+  };
+
+  const handleSelectAll = () => {
+    if (selectedIds.size === filteredSubscriptions.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filteredSubscriptions.map((s) => s.id)));
+    }
+  };
+
+  const handleBatchDelete = async () => {
+    if (selectedIds.size === 0) {
+      toast.showWarning("Please select at least one subscription to delete", "No selection");
+      return;
+    }
+
+    try {
+      const subscriptionIds = Array.from(selectedIds).map((id) => parseInt(id, 10));
+      const response = await deleteBatchSubscriptions(subscriptionIds);
+      
+      setBatchId(response.batch_id);
+      setBatchDeleteOpen(true);
+      setSelectionMode(false);
+      setSelectedIds(new Set());
+    } catch (error) {
+      toast.showError(error, "Failed to start batch deletion");
+    }
+  };
+
+  const handleBatchDeleteComplete = () => {
+    onRefresh();
+    setBatchId(null);
+  };
+
   return (
     <div className="space-y-6 max-w-5xl mx-auto">
       <div className="grid gap-6 lg:grid-cols-2">
@@ -308,13 +363,73 @@ export function Dashboard({
                 {filteredSubscriptions.length === subscriptions.length
                   ? `${subscriptions.length} total`
                   : `Showing ${filteredSubscriptions.length} of ${subscriptions.length}`}
+                {selectionMode && selectedIds.size > 0 && (
+                  <span className="ml-2 text-primary font-semibold">
+                    ({selectedIds.size} selected)
+                  </span>
+                )}
               </p>
             </div>
-            <Button onClick={() => setAddDialogOpen(true)}>
-              <Plus className="h-4 w-4 mr-2" />
-              Add Subscription
-            </Button>
+            <div className="flex gap-2">
+              {selectionMode ? (
+                <>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setSelectionMode(false);
+                      setSelectedIds(new Set());
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    onClick={handleBatchDelete}
+                    disabled={selectedIds.size === 0}
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Delete Selected ({selectedIds.size})
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Button
+                    variant="outline"
+                    onClick={() => setSelectionMode(true)}
+                  >
+                    <CheckSquare className="h-4 w-4 mr-2" />
+                    Select
+                  </Button>
+                  <Button onClick={() => setAddDialogOpen(true)}>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Subscription
+                  </Button>
+                </>
+              )}
+            </div>
           </div>
+          {selectionMode && filteredSubscriptions.length > 0 && (
+            <div className="mt-4 flex items-center gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleSelectAll}
+                className="text-sm"
+              >
+                {selectedIds.size === filteredSubscriptions.length ? (
+                  <>
+                    <Square className="h-4 w-4 mr-2" />
+                    Deselect All
+                  </>
+                ) : (
+                  <>
+                    <CheckSquare className="h-4 w-4 mr-2" />
+                    Select All
+                  </>
+                )}
+              </Button>
+            </div>
+          )}
           <div className="space-y-4 mt-4">
             <div className="relative">
               <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
@@ -410,6 +525,9 @@ export function Dashboard({
                   subscription={subscription}
                   userId={userId}
                   onUpdate={onRefresh}
+                  selectionMode={selectionMode}
+                  selected={selectedIds.has(subscription.id)}
+                  onSelectionChange={handleSelectionChange}
                 />
               ))}
             </div>
@@ -423,6 +541,13 @@ export function Dashboard({
         subscription={null}
         userId={userId}
         onSuccess={onRefresh}
+      />
+
+      <BatchDeleteDialog
+        open={batchDeleteOpen}
+        onOpenChange={setBatchDeleteOpen}
+        batchId={batchId}
+        onComplete={handleBatchDeleteComplete}
       />
     </div>
   );
